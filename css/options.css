@@ -1,0 +1,564 @@
+:root {
+  /* Renkler */
+  --primary-bg-light: #f7f7f7;
+  --primary-color-light: #000000;
+  --primary-bg-dark: #121212;
+  --primary-color-dark: #ffffff;
+  --secondary-bg-dark: #1b1b1b;
+  --secondary-color-light: #000000;
+  --secondary-color-dark: #ffffff;
+  --highlight-color-light: #0078d4;
+  --highlight-color-dark: #80bfff;
+  --button-bg: #4caf50;
+  --button-bg-hover: #45a049;
+  --button-bg-active: #3e8e41;
+  --reset-button-bg: #ff0046;
+  --reset-button-bg-hover: #ff001b;
+  --reset-button-bg-active: #ff0004;
+}
+
+/* Tüm simgelerin boyutunu ayarlayan stil */
+.material-icons {
+  font-size: 21px;
+  /* Simge boyutunu buradan ayarlayabilirsiniz */
+}
+
+body {
+  font-family: "Roboto", sans-serif;
+  font-size: 16px;
+  margin: 0;
+  padding: 40px;
+  background: var(--primary-bg-light);
+  color: var(--primary-color-light);
+}
+
+/* Tema algılama */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: var(--primary-bg-dark);
+    color: var(--primary-color-dark);
+  }
+
+  #settings-wrapper {
+    background: var(--secondary-bg-dark);
+  }
+
+  p,
+  label,
+  span,
+  input[type="radio"]+span,
+  .setting-label,
+  .setting-control label {
+    color: var(--secondary-color-dark);
+    /* Yazıları siyah yap */
+  }
+
+  .setting-label .material-icons {
+    color: var(--secondary-color-dark);
+    /* İkon renklerini de siyah yap */
+  }
+
+  input[type="radio"]:checked+span {
+    color: var(--highlight-color-dark);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  body {
+    background: var(--primary-bg-light);
+    color: var(--primary-color-light);
+  }
+
+  #settings-wrapper {
+    background: var(--primary-bg-light);
+  }
+
+  p,
+  label,
+  span,
+  input[type="radio"]+span,
+  .setting-label,
+  .setting-control label {
+    color: var(--secondary-color-light);
+  }
+
+  .setting-label .material-icons {
+    color: var(--secondary-color-light);
+  }
+
+  input[type="radio"]:checked+span {
+    color: var(--highlight-color-light);
+  }
+}
+
+#settings-wrapper {
+  max-width: 700px;
+  margin: 0 auto;
+  background: --secondary-bg-dark;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+p,
+label,
+span,
+input[type="radio"]+span,
+.setting-label,
+.setting-control label {
+  font-size: 18px;
+  /* Yazı boyutunu buradan ayarlayabilirsiniz */
+}
+
+h1 {
+  text-align: center;
+  font-size: 24px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.setting-row:last-child {
+  border-bottom: none;
+}
+
+.setting-row2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.setting-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.setting-control {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.setting-control label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+input[type="range"] {
+  width: 200px;
+  accent-color: var(--highlight-color-light);
+}
+
+input[type="radio"] {
+  display: none;
+}
+
+/* İçeri Aktar ve Dışarı Aktar Butonları İçin Stil */
+#export-json,
+#import-json {
+  background-color: var(--button-bg);
+  /* Buton rengi */
+  border: none;
+  /* Kenarlık kaldır */
+  color: white;
+  /* Yazı rengi */
+  font-weight: bold;
+  padding: 10px 15px;
+  /* İç boşluk */
+  text-align: center;
+  /* Metin hizalama */
+  text-decoration: none;
+  /* Alt çizgi kaldır */
+  display: inline-block;
+  /* Satır içi blok eleman */
+  font-size: 15px;
+  /* Yazı boyutu */
+  margin: 10px 5px;
+  /* Dış boşluk */
+  cursor: pointer;
+  /* İmleç şekli */
+  border-radius: 5px;
+  /* Kenar yuvarlama */
+  transition: background-color 0.3s ease, transform 0.3s ease;
+  /* Geçiş efekti */
+}
+
+#export-json:hover,
+#import-json:hover {
+  background-color: var(--button-bg-hover);
+  /* Hover rengi */
+  transform: scale(1.05);
+  /* Hover ile büyüme efekti */
+}
+
+#update-images {
+  background-color: #0078d4;
+  /* Buton rengi */
+  border: none;
+  /* Kenarlık kaldır */
+  color: white;
+  /* Yazı rengi */
+  font-weight: bold;
+  padding: 10px 15px;
+  /* İç boşluk */
+  text-align: center;
+  /* Metin hizalama */
+  text-decoration: none;
+  /* Alt çizgi kaldır */
+  display: inline-block;
+  /* Satır içi blok eleman */
+  font-size: 15px;
+  /* Yazı boyutu */
+  margin: 10px 5px;
+  /* Dış boşluk */
+  cursor: pointer;
+  /* İmleç şekli */
+  border-radius: 5px;
+  /* Kenar yuvarlama */
+  transition: background-color 0.3s ease, transform 0.3s ease;
+  /* Geçiş efekti */
+}
+
+#update-images:hover {
+  background-color: #0337e0;
+  /* Hover rengi */
+  transform: scale(1.05);
+  /* Hover ile büyüme efekti */
+}
+
+#fix-data {
+  background-color: orange;
+  /* Buton rengi */
+  border: none;
+  /* Kenarlık kaldır */
+  color: white;
+  /* Yazı rengi */
+  padding: 10px 15px;
+  /* İç boşluk */
+  font-weight: bold;
+  text-align: center;
+  /* Metin hizalama */
+  text-decoration: none;
+  /* Alt çizgi kaldır */
+  display: inline-block;
+  /* Satır içi blok eleman */
+  font-size: 15px;
+  /* Yazı boyutu */
+  margin: 10px 5px;
+  /* Dış boşluk */
+  cursor: pointer;
+  /* İmleç şekli */
+  border-radius: 5px;
+  /* Kenar yuvarlama */
+  transition: background-color 0.3s ease, transform 0.3s ease;
+  /* Geçiş efekti */
+}
+
+#fix-data:hover {
+  background-color: #e06e03;
+  /* Hover rengi */
+  transform: scale(1.05);
+  /* Hover ile büyüme efekti */
+}
+
+/* Fabrika ayarları */
+#clear-data {
+  background-color: var(--reset-button-bg);
+  /* Buton rengi */
+  border: none;
+  /* Kenarlık kaldır */
+  color: white;
+  /* Yazı rengi */
+  font-weight: bold;
+  padding: 10px 16px;
+  /* İç boşluk */
+  text-align: center;
+  /* Metin hizalama */
+  text-decoration: none;
+  /* Alt çizgi kaldır */
+  display: inline-block;
+  /* Satır içi blok eleman */
+  font-size: 16px;
+  /* Yazı boyutu */
+  margin: 10px 5px;
+  /* Dış boşluk */
+  cursor: pointer;
+  /* İmleç şekli */
+  border-radius: 5px;
+  /* Kenar yuvarlama */
+  transition: background-color 0.3s ease, transform 0.3s ease;
+  /* Geçiş efekti */
+}
+
+#clear-data:hover {
+  background-color: var(--reset-button-bg-hover);
+  /* Hover rengi */
+  transform: scale(1.05);
+  /* Hover ile büyüme efekti */
+}
+
+.tracking-limit {
+  display: flex;
+  gap: 10px;
+  /* Seçenekler arasına boşluk eklemek için */
+  text-align: right;
+}
+
+/* Toast mesaj stili */
+.toast {
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 20px;
+  border-radius: 5px;
+  color: white;
+  font-size: 14px;
+  z-index: 1000;
+  opacity: 0.9;
+  animation: fadeInOut 3s;
+}
+
+.toast.info {
+  background-color: #0076e4;
+}
+
+.toast.success {
+  background-color: #4caf50;
+}
+
+.toast.warning {
+  background-color: #ff9800;
+}
+
+.toast.error {
+  background-color: #ff3333;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 0.9;
+  }
+
+  90% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+.export-import-buttons {
+  align-items: center;
+  text-align: center;
+}
+
+.setting-row:hover::after {
+  content: attr(data-tooltip);
+  position: fixed;
+  background: white;
+  border: 1px solid;
+  padding: 5px;
+  border-radius: 5px;
+  bottom: 10px;
+  left: 50%;
+  bottom: var(--tooltip-bottom, auto);
+  top: var(--tooltip-top, 5px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  z-index: 100;
+}
+
+/* Varsayılan stil */
+.setting-row:hover::after {
+  color: black;
+  border-color: black;
+}
+
+/* Kırmızı tooltip */
+.setting-row.red:hover::after {
+  color: red;
+  border-color: red;
+}
+
+/* Mavi tooltip */
+.setting-row.blue:hover::after {
+  color: #0078d4;
+  border-color: #0078d4;
+}
+
+.hidden-option {
+  visibility: hidden;
+  height: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* --- Kart Yapısı İyileştirmeleri --- */
+
+.settings-card {
+  background: var(--primary-bg-light);
+  border-radius: 8px;
+  padding: 16px 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e0e0e0;
+}
+
+.settings-card h2 {
+  font-size: 20px;
+  margin-top: 0;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 12px;
+}
+
+/* Varolan stilleri kartlara uyumlu hale getir */
+#settings-wrapper {
+  background: transparent;
+  /* Ana arkaplanı şeffaf yap */
+  box-shadow: none;
+  /* Gölgeyi kartlara taşı */
+  border-radius: 0;
+  padding: 0;
+  /* Dış padding'i kaldır */
+}
+
+.setting-row {
+  padding: 14px 0;
+  /* Satır içi boşluğu biraz artır */
+}
+
+.settings-card .setting-row:last-child {
+  border-bottom: none;
+  /* Kart içindeki son elemanın alt çizgisini kaldır */
+}
+
+/* Veri yönetimi butonlarını ortala */
+.export-import-buttons {
+  padding: 10px 0;
+  text-align: center;
+}
+
+/* Kartlar için Koyu Mod Ayarlaması */
+@media (prefers-color-scheme: dark) {
+  .settings-card {
+    background: var(--secondary-bg-dark);
+    /* Kart arkaplanı */
+    border-color: #333;
+    /* Kart sınırı */
+  }
+
+  .settings-card h2 {
+    border-bottom-color: #333;
+    /* Başlık altı çizgisi */
+  }
+
+  #settings-wrapper {
+    background: transparent;
+  }
+
+  .setting-row {
+    border-bottom-color: #333;
+    /* Satır çizgisi */
+  }
+
+  .disclaimer-text {
+    font-size: 13px;
+    color: #555;
+    text-align: center;
+    width: 100%;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0 10px;
+  }
+
+  .disclaimer-text .material-icons {
+    font-size: 16px;
+    /* İkon boyutunu yazıya uydur */
+    margin-right: 5px;
+    vertical-align: middle;
+    /* İkonu metne ortala */
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .disclaimer-text {
+      color: #999;
+    }
+
+    /* Kart 3'e eklediğimiz ayırıcı çizginin koyu mod rengi */
+    .settings-card .setting-row[style*="border-top"] {
+      border-top-color: #333 !important;
+    }
+  }
+}
+
+.warning-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background-color: #fffbe6;
+  /* Açık sarı */
+  color: #5d4c18;
+  /* Koyu sarı/kahve */
+  border: 1px solid #ffe58f;
+  /* Sarı border */
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 15px;
+}
+
+.warning-box .material-icons {
+  color: #f59e0b;
+  /* Turuncu-sarı ikon */
+  font-size: 20px;
+  margin-top: 2px;
+}
+
+.warning-box div {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Koyu mod için uyarı kutusu */
+@media (prefers-color-scheme: dark) {
+  .warning-box {
+    background-color: #4a3c1a;
+    color: #fdecc8;
+    border-color: #7a5f1a;
+  }
+
+  .warning-box .material-icons {
+    color: #facc15;
+    /* Koyu mod sarı ikon */
+  }
+
+  /* Koyu modda select menü rengi */
+  select {
+    background-color: var(--secondary-bg-dark);
+    color: var(--secondary-color-dark);
+    border: 1px solid var(--border-color);
+  }
+}

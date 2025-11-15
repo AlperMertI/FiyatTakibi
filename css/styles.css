@@ -1,0 +1,195 @@
+#followButton .icon {
+  margin-right: 10px;
+}
+
+.follow-btn,
+.notify-btn {
+  background-color: #0478ff;
+  color: white;
+  border: none;
+  padding: 10px 12px;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+}
+
+.unfollow-btn {
+  background-color: #cc0c39;
+  color: white;
+  border: none;
+  padding: 10px 12px;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+}
+
+.follow-btn:hover,
+.notify-btn:hover,
+.unfollow-btn:hover {
+  opacity: 0.8;
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 20px;
+  border-radius: 5px;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  z-index: 1000;
+  opacity: 0.9;
+  animation: fadeInOut 3s;
+  display: flex;
+  align-items: center;
+  transition: transform 0.5s ease-out;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1), 0px 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.toast.success {
+  background-color: #4caf50;
+}
+
+.toast.warning {
+  background-color: #ff9800;
+}
+
+.toast.error {
+  background-color: #ff3333;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  10% {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
+
+  90% {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+#priceHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+#priceHeader>div {
+  flex: 1;
+  text-align: center;
+}
+
+.price-history-box {
+  position: relative;
+  overflow: visible;
+  padding: 12px;
+  margin: 10px 0;
+  border-radius: 8px;
+  border-left: 4px solid #6c757d;
+  font-size: 14px;
+  line-height: 1;
+  background-color: #e9ecef;
+}
+
+.price-history-box.zam {
+  border-left-color: #dc3545;
+  background-color: #f8d7da;
+}
+
+.price-history-box.indirim {
+  border-left-color: #28a745;
+  background-color: #d4edda;
+}
+
+.price-history-box.bilgi {
+  background-color: #eaf4ff;
+  border-left: 4px solid #3399ff;
+}
+
+.chart-area {
+  width: 100%;
+  height: 360px;
+}
+
+/* content.js'deki grafik altı bilgilendirme metni */
+.chart-container {
+  /* Bu, bilgilendirme metninin de arka plan rengini almasını sağlar */
+  background-color: #f7f7f7;
+  padding-bottom: 5px;
+  border-radius: 0 0 8px 8px;
+}
+
+.chart-disclaimer {
+  font-size: 11px;
+  color: #777;
+  text-align: center;
+  padding: 8px 12px 4px 12px;
+  margin-top: 5px;
+  border-top: 1px solid #ddd;
+}
+
+.aft-follow-button-hb {
+  /* Konumlandırma ve boyut */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  /* Max genişlik, ana Buybox sütunuyla aynı olmalıdır */
+  max-width: 424px;
+  margin: 16px auto 8px 0;
+  padding: 10px 15px;
+
+  /* Görünüm */
+  border: 2px solid #FF6000;
+  border-radius: 8px;
+  background-color: #fff;
+  color: #FF6000;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.aft-follow-button-hb:hover {
+  background-color: #ffeae5;
+}
+
+.aft-follow-button-hb.active {
+  background-color: #36b23e;
+  color: #fff;
+  border-color: #36b23e;
+}
+
+.aft-follow-button-hb.active:hover {
+  background-color: #2a8a30;
+}
+
+#aft-status-hb {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 400;
+  color: inherit;
+}

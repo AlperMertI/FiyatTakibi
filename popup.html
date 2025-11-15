@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="css/popup.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <title>Amazon Ürün Takip Eklentisi</title>
+  <script src="src/echarts.min.js"></script>
+  <script src="src/browser-polyfill.min.js" type="module"></script>
+</head>
+
+<body>
+  <div id="popup-container">
+    <div class="header-left">
+      <picture>
+        <source srcset="icons/darkicon32.png" media="(prefers-color-scheme: dark)" />
+        <source srcset="icons/icon32.png" media="(prefers-color-scheme: light)" />
+        <img src="icons/icon32.png" alt="Eklenti logosu" class="logo" />
+      </picture>
+      <input type="text" id="search-box" placeholder="Ürün ara..." aria-label="Ürün arama kutusu" />
+    </div>
+    <div class="header-right">
+      <button id="add-product-button" class="action-button add-product-button" title="URL'den Ürün Ekle"
+        aria-label="URL'den Ürün Ekle">
+        <span class="material-icons icon-small">add_link</span>
+      </button>
+
+      <button id="update-button" class="action-button update-button" title="Fiyatları Güncelle"
+        aria-label="Fiyatları Güncelle">
+        <span class="material-icons icon-small">update</span>
+      </button>
+
+      <button id="feedback-button" class="action-button feedback-button" title="Geri Bildirim Gönder"
+        aria-label="Geri Bildirim Gönder">
+        <span class="material-icons icon-small">feedback</span>
+      </button>
+
+      <button id="settings-button" class="action-button settings-button" title="Ayarlar menüsüne git"
+        aria-label="Ayarlar menüsüne git">
+        <span class="material-icons icon-small">settings</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="product-list-container">
+    <div class="product-list-header">
+      <div id="p-group" class="header-cell cell-group"><button title="Gruba Göre Sırala">🚦</button></div>
+      <div id="p-number" class="header-cell cell-number"><button title="Numaraya Göre Sırala">#️⃣</button></div>
+      <div id="p-image" class="header-cell cell-image"><span class="material-icons" title="Görsel">image</span></div>
+      <div id="p-name" class="header-cell cell-name"><button title="Ada Göre Sırala">Ürün Adı</button></div>
+      <div id="p-Oprice" class="header-cell cell-price-old"><button title="Fiyata Göre Sırala">Eski F.</button></div>
+      <div id="p-percent" class="header-cell cell-percent"><button title="Değişime Göre Sırala">%</button></div>
+      <div id="p-Nprice" class="header-cell cell-price-new"><button title="Fiyata Göre Sırala">Güncel</button></div>
+      <div id="updateStatus-button" class="header-cell cell-status"><button class="action-button"
+          title="Fiyat Değişimlerini Onayla">✅</button></div>
+      <div id="delete-all" class="header-cell cell-actions"><button class="action-button delete-button"
+          title="Tüm ürünleri sil">Sil</button></div>
+    </div>
+
+    <div id="product-tbody">
+    </div>
+  </div>
+
+  <span id="last-update-time"></span>
+
+  <div id="priceHistoryContainer" style="display: none">
+    <div id="priceHistoryChart" style="width: 100%; height: 200px"></div>
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+
+</html>

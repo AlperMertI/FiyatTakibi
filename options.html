@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Amazon Ürün Takip Ayarları sayfası." />
+  <title>Amazon Ürün Takip Ayarları - Kişiselleştirilebilir Seçenekler</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="stylesheet" href="css/options.css" />
+  <script src="src/browser-polyfill.min.js" type="module"></script>
+  <script src="options.js" type="module"></script>
+</head>
+
+<body>
+  <div id="settings-wrapper">
+    <h1><span class="material-icons">settings</span> Ayarlar</h1>
+
+    <div class="settings-card">
+      <h2><span class="material-icons">tune</span> Genel Kontroller</h2>
+
+      <div class="setting-row blue" data-tooltip="Listenizdeki Ürün Fiyatları ne sıklıkla kontrol edilsin?">
+        <div class="setting-label"><span class="material-icons">timer</span> Fiyat Kontrol Sıklığı</div>
+        <div class="setting-control">
+          <label for="priceCheckInterval0"><input id="priceCheckInterval0" type="radio" name="priceCheckInterval"
+              value="0" /><span> OFF</span></label>
+          <label for="priceCheckInterval10"><input id="priceCheckInterval10" type="radio" name="priceCheckInterval"
+              value="10" /><span> 10dk</span></label>
+          <label for="priceCheckInterval30"><input id="priceCheckInterval30" type="radio" name="priceCheckInterval"
+              value="30" /><span> 30dk</span></label>
+          <label for="priceCheckInterval60"><input id="priceCheckInterval60" type="radio" name="priceCheckInterval"
+              value="60" /><span> 60dk</span></label>
+        </div>
+      </div>
+
+      <div class="setting-row blue" data-tooltip="Windows Pop-up Bildirim istiyor musunuz?.">
+        <div class="setting-label"><span class="material-icons">announcement</span> Pop-up Bildirim</div>
+        <div class="setting-control">
+          <label for="visualNotificationTypeOff"><input id="visualNotificationTypeOff" type="radio"
+              name="visualNotificationType" value="v_off" /><span><span class="material-icons">notifications_off</span>
+              Kapalı</span></label>
+          <label for="visualNotificationTypeOn"><input id="visualNotificationTypeOn" type="radio"
+              name="visualNotificationType" value="v_on" /><span><span class="material-icons">notifications_on</span>
+              Açık</span></label>
+        </div>
+      </div>
+
+      <div class="setting-row blue"
+        data-tooltip="Fiyat değişimlerinde % kaç indirim olduğunda uyarı almak istiyorsunuz? ">
+        <div class="setting-label"><span class="material-icons">trending_down</span> İndirim Bildirim Ayarı %</div>
+        <div class="setting-control">
+          <span id="rangeValue">Her Zaman</span>
+          <input type="range" id="thresholdRange" name="priceChangeThreshold" min="0" max="50" step="5" value="0"
+            title="İndirim Uyarı Ayarı %" placeholder="İndirim uyarı yüzdesini ayarlayın" />
+        </div>
+      </div>
+
+      <div class="setting-row blue"
+        data-tooltip="Fiyat kontrolü sırasında aynı anda kaç ürünün sorgulanacağını belirler.">
+        <div class="setting-label"><span class="material-icons">sync_alt</span> Eşzamanlı Kontrol</div>
+        <div class="setting-control">
+          <select id="concurrentCheckLimit" name="concurrentCheckLimit">
+            <option value="2">Yavaş (2)</option>
+            <option value="4" selected>Normal (4)</option>
+            <option value="6">Hızlı (6)</option>
+            <option value="8">Çok Hızlı (8)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="warning-box">
+        <span class="material-icons">warning_amber</span>
+        <div>
+          <strong>Yüksek Eşzamanlı Kontrol Riski:</strong> Bu ayarı 4'ün üzerine çıkarmak, siteler tarafından bot olarak
+          algılanmanıza veya geçici olarak engellenmenize neden olabilir. Ayrıca tarayıcı performansını yavaşlatabilir.
+        </div>
+      </div>
+
+    </div>
+    <div class="settings-card">
+      <h2><span class="material-icons">notifications</span> Bildirimler ve Sesler</h2>
+
+      <div class="setting-row blue" data-tooltip="Bildirim istiyor musunuz?">
+        <div class="setting-label"><span class="material-icons">volume_up</span>Bildirim (Ana Şalter)</div>
+        <div class="setting-control">
+          <label for="notificationTypeOff"><input id="notificationTypeOff" type="radio" name="notificationType"
+              value="n_off" /><span><span class="material-icons">volume_off</span> Kapalı</span></label>
+          <label for="notificationTypeOn"><input id="notificationTypeOn" type="radio" name="notificationType"
+              value="n_on" /><span><span class="material-icons">volume_up</span> Açık</span></label>
+        </div>
+      </div>
+
+      <div class="setting-row blue" data-tooltip="İndirim bildirimi almak istiyor musunuz?">
+        <div class="setting-label"><span class="material-icons">trending_down</span> İndirim Bildirimi</div>
+        <div class="setting-control">
+          <label for="discountNotificationOff"><input id="discountNotificationOff" type="radio"
+              name="discountNotification" value="d_off" /><span><span class="material-icons">notifications_off</span>
+              Kapalı</span></label>
+          <label for="discountNotificationOn"><input id="discountNotificationOn" type="radio"
+              name="discountNotification" value="d_on" /><span><span class="material-icons">notifications_on</span>
+              Açık</span></label>
+        </div>
+      </div>
+
+      <div class="setting-row blue" data-tooltip="İndirim zil sesi ayarlamak istiyor musunuz?">
+        <div class="setting-label"><span class="material-icons">alarm</span> İndirim Zil Sesi</div>
+        <div class="setting-control">
+          <select id="discountSound" name="discountSound"></select>
+        </div>
+      </div>
+
+      <div class="setting-row blue" data-tooltip="Stok bildirimi almak istiyor musunuz?">
+        <div class="setting-label"><span class="material-icons">inventory</span> Stok Bildirimi</div>
+        <div class="setting-control">
+          <label for="stockNotificationOff"><input id="stockNotificationOff" type="radio" name="stockNotification"
+              value="s_off" /><span><span class="material-icons">notifications_off</span> Kapalı</span></label>
+          <label for="stockNotificationOn"><input id="stockNotificationOn" type="radio" name="stockNotification"
+              value="s_on" /><span><span class="material-icons">notifications_on</span> Açık</span></label>
+        </div>
+      </div>
+
+      <div class="setting-row blue" data-tooltip="Stok zil sesi ayarlamak istiyor musunuz?">
+        <div class="setting-label"><span class="material-icons">alarm</span> Stok Zil Sesi</div>
+        <div class="setting-control">
+          <select id="stockSound" name="stockSound"></select>
+        </div>
+      </div>
+
+      <div class="setting-row blue" data-tooltip="Zam bildirimi almak istiyor musunuz?">
+        <div class="setting-label"><span class="material-icons">trending_up</span> Zam Bildirimi</div>
+        <div class="setting-control">
+          <label for="priceIncreaseNotificationOff"><input id="priceIncreaseNotificationOff" type="radio"
+              name="priceIncreaseNotification" value="pi_off" /><span><span
+                class="material-icons">notifications_off</span> Kapalı</span></label>
+          <label for="priceIncreaseNotificationOn"><input id="priceIncreaseNotificationOn" type="radio"
+              name="priceIncreaseNotification" value="pi_on" /><span><span
+                class="material-icons">notifications_on</span>
+              Açık</span></label>
+        </div>
+      </div>
+
+      <div class="setting-row blue" data-tooltip="Zam zil sesi ayarlamak istiyor musunuz?">
+        <div class="setting-label"><span class="material-icons">alarm</span> Zam Zil Sesi</div>
+        <div class="setting-control">
+          <select id="priceIncreaseSound" name="priceIncreaseSound"></select>
+        </div>
+      </div>
+    </div>
+    <div class="settings-card">
+      <h2><span class="material-icons">storage</span> Veri Yönetimi</h2>
+
+      <div style="width: 100%" class="export-import-buttons">
+      </div>
+
+      <div class="setting-row" style="padding-top: 10px; border-top: 1px solid #e0e0e0; margin-top: 10px;">
+        <p class="disclaimer-text">
+          <span class="material-icons"
+            style="font-size: 16px; margin-right: 5px; vertical-align: middle;">info_outline</span>
+          Fiyat grafiği verileri, Yanyo (yaniyo.com) ve AFT sunucuları gibi harici kaynaklardan sağlanmaktadır. Veri
+          doğruluğu veya sürekliliği garanti edilmez.
+        </p>
+      </div>
+      <span style="color: blueviolet" id="extension-version"></span>
+    </div>
+  </div>
+</body>
+
+</html>

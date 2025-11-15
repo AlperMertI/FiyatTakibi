@@ -1,0 +1,492 @@
+/* popup.css - Modern Arayüz */
+
+/* Koyu/Açık Tema Değişkenleri */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background-color: #121212;
+    --text-color: #e0e0e0;
+    --text-color-secondary: #aaaaaa;
+    --card-background: #1e1e1e;
+    --border-color: #333333;
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --header-button-hover: #333;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --background-color: #f4f7f6;
+    --text-color: #2c2c2c;
+    --text-color-secondary: #555555;
+    --card-background: #ffffff;
+    --border-color: #dddddd;
+    --shadow-color: rgba(0, 0, 0, 0.08);
+    --header-button-hover: #eeeeee;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  width: 780px;
+  min-width: 600px;
+  max-width: 780px;
+  padding: 12px;
+  font-size: 14px;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  box-sizing: border-box;
+}
+
+/* Üst Başlık Alanı */
+#popup-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  margin-bottom: 12px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  width: 28px;
+  height: 28px;
+  vertical-align: middle;
+}
+
+#search-box {
+  background-color: var(--card-background);
+  color: var(--text-color);
+  width: 200px;
+  /* Genişlettik */
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  /* Modern yuvarlak arama çubuğu */
+  font-size: 13px;
+  box-shadow: 0 1px 3px var(--shadow-color);
+  transition: all 0.2s ease;
+}
+
+#search-box:focus {
+  border-color: #0478ff;
+  outline: none;
+  box-shadow: 0 2px 5px rgba(4, 120, 255, 0.3);
+}
+
+/* Header Butonları */
+.action-button {
+  background: transparent;
+  color: var(--text-color-secondary);
+  border: none;
+  border-radius: 50%;
+  /* Tam yuvarlak buton */
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.action-button:hover {
+  background-color: var(--header-button-hover);
+  color: var(--text-color);
+}
+
+.action-button .material-icons {
+  font-size: 20px;
+}
+
+/* Liste Alanı (Grid Layout) */
+#product-list-container {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ortak Grid Yapısı (Başlık ve Satırlar için) */
+.product-list-header,
+.product-row {
+  display: grid;
+  grid-template-columns: 10px 40px 50px 1fr 100px 60px 100px 40px 40px;
+  gap: 8px;
+  align-items: center;
+  padding: 0 10px;
+}
+
+/* Liste Başlığı */
+.product-list-header {
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--border-color);
+  margin-bottom: 8px;
+}
+
+.header-cell {
+  font-weight: bold;
+  color: var(--text-color-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.header-cell.cell-name {
+  text-align: left;
+}
+
+.header-cell button {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.header-cell button:hover {
+  color: var(--text-color);
+}
+
+.header-cell.cell-image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.header-cell.cell-image .material-icons {
+  font-size: 20px;
+}
+
+/* Ürün Satırları (Kart Görünümü) */
+#product-tbody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Kartlar arası boşluk */
+}
+
+.product-row {
+  background-color: var(--card-background);
+  border-radius: 8px;
+  padding: 12px 10px;
+  /* Kart içi boşluk */
+  box-shadow: 0 2px 4px var(--shadow-color);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.product-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px var(--shadow-color);
+  position: relative;
+  z-index: 100;
+}
+
+/* Satır Hücreleri */
+.product-row>div {
+  /* Hücre içeriğini dikey ortala */
+  display: flex;
+  align-items: center;
+  /* Kırpmayı önle */
+  min-width: 0;
+  font-size: 13px;
+}
+
+.cell-image {
+  justify-content: center;
+  text-align: center;
+  /* Satır yüksekliğine yakın bir boyut */
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  /* Hover efekti için önemli */
+}
+
+.cell-group,
+.cell-number,
+.cell-price-old,
+.cell-price-new,
+.cell-status,
+.cell-actions {
+  justify-content: center;
+  text-align: center;
+}
+
+.cell-name {
+  justify-content: flex-start;
+  gap: 8px;
+  /* Resim ve link arası boşluk */
+  /* Uzun isimler için kırpma */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.cell-name a {
+  color: var(--text-color);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-name a:hover {
+  color: #0478ff;
+  text-decoration: underline;
+}
+
+.cell-price-old {
+  color: var(--text-color-secondary);
+}
+
+.cell-status {
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.delete-btn {
+  background-color: transparent;
+  color: var(--text-color-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.delete-btn:hover {
+  background-color: #ff4d4d;
+  color: white;
+  border-color: #ff4d4d;
+}
+
+/* Akordiyon (Grafik) */
+.accordion-row {
+  /* Tüm grid sütunlarını kapla */
+  grid-column: 1 / -1;
+}
+
+.accordion-content {
+  padding: 10px;
+  color: var(--text-color);
+  background-color: var(--card-background);
+  border-top: 1px solid var(--border-color);
+  margin: 0 -10px -12px -10px;
+  /* Kartın kenarlarına yay */
+  border-radius: 0 0 8px 8px;
+}
+
+.no-data-message {
+  color: #a7001c;
+  font-weight: bold;
+}
+
+/* Grup Menüsü */
+.group-menu {
+  position: absolute;
+  display: none;
+  background-color: #313131d0;
+  border: 1px solid #ff0000b2;
+  padding: 3px;
+  z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+}
+
+.group-menu-option {
+  cursor: pointer;
+  padding: 1px;
+}
+
+/* Diğer Stiller */
+#last-update-time {
+  display: block;
+  text-align: right;
+  margin: 10px 4px 0 0;
+  font-size: 12px;
+  color: var(--text-color-secondary);
+}
+
+.preview-img {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  visibility: visible;
+  opacity: 1;
+  object-fit: contain;
+
+  transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease, position 0s ease 0.2s;
+  transform-origin: center center;
+  z-index: 1;
+  border-radius: 4px;
+  background-color: #fff;
+}
+
+.preview-img.no-image {
+  visibility: hidden;
+  opacity: 0;
+  width: 0;
+}
+
+.preview-img:hover {
+  position: absolute;
+  /* Ekranda daha çok yer kaplaması için */
+  transform: scale(5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  /* Geçişin hemen olmaması için küçük bir gecikme */
+  transition: transform 0.2s ease 0.1s, box-shadow 0.2s ease 0.1s, position 0s ease 0.1s;
+}
+
+/* Fiyat Flaşı Animasyonu */
+@keyframes priceFlash {
+  0% {
+    background-color: transparent;
+  }
+
+  50% {
+    background-color: #ff980040;
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+.price-flash {
+  animation: priceFlash 1.5s ease-out;
+}
+
+/* Yükleme İkonu */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.price-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.price-loader .material-icons {
+  animation: spin 1.5s linear infinite;
+  display: inline-block;
+  font-size: 18px;
+  color: #888;
+}
+
+/* Güncelleme Butonu Yükleme */
+#update-button.loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+#update-button.loading .material-icons {
+  animation: spin 1.5s linear infinite;
+  display: inline-block;
+}
+
+.toast {
+  position: fixed;
+  font-size: 12px;
+  bottom: 3px;
+  left: 10px;
+  padding: 5px 5px;
+  border-radius: 5px;
+  opacity: 0;
+  transition: opacity 0.5s;
+  z-index: 1000;
+  color: white;
+  /* Beyaz yazı rengi ekledim */
+}
+
+.toast.visible {
+  opacity: 1;
+}
+
+.toast.success {
+  background: green;
+}
+
+.toast.info {
+  background: blue;
+}
+
+.toast.error {
+  background: red;
+}
+
+.chart-disclaimer {
+  font-size: 10px;
+  color: #888;
+  text-align: center;
+  padding: 8px 12px 4px 12px;
+  margin-top: 5px;
+  border-top: 1px solid #eee;
+}
+
+@media (prefers-color-scheme: dark) {
+  .chart-disclaimer {
+    color: #777;
+    border-top-color: #333;
+  }
+}
+
+.cell-status {
+  /* İkonun tıklanabilir olması için */
+  cursor: pointer;
+  /* İkonu ortalamak için */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-chevron-icon {
+  font-size: 18px;
+  color: #888;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+
+@media (prefers-color-scheme: dark) {
+  .chart-chevron-icon {
+    color: #999;
+  }
+}
+
+.cell-percent {
+  font-weight: bold;
+  font-size: 13px;
+  justify-content: center;
+}
+
+.cell-percent.positive {
+  color: #E74C3C;
+}
+
+.cell-percent.negative {
+  color: #2ECC71;
+}

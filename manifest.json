@@ -1,0 +1,86 @@
+{
+  "update_url": "https://clients2.google.com/service/update2/crx",
+  "manifest_version": 3,
+  "name": "Amazon Fiyat Takip Eklentisi",
+  "description": "Amazon ve Hepsiburada ürünlerini takip edin, fiyat düştüğünde uyarı alın.",
+  "version": "2.0",
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "*://*.amazon.com.tr/*",
+    "https://www.yaniyo.com/*",
+    "*://apiv2.yaniyo.com/*",
+    "https://www.hepsiburada.com/*",
+    "https://*.hepsiburada.com/*",
+    "https://amazon.aft.web.tr/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icons/icon32.png"
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.amazon.com.tr/*"
+      ],
+      "js": [
+        "storage.content.js",
+        "src/echarts.min.js",
+        "content.chart.js",
+        "content.js"
+      ],
+      "css": [
+        "css/styles.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://www.hepsiburada.com/*-p-*",
+        "https://www.hepsiburada.com/*-pm-*"
+      ],
+      "js": [
+        "storage.content.js",
+        "content-hb.js"
+      ],
+      "css": [
+        "css/styles.css"
+      ]
+    }
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/echarts.min.js",
+        "sound/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; media-src 'self';"
+  }
+}
