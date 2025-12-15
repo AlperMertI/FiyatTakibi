@@ -51,8 +51,19 @@
       <div id="p-image" class="header-cell cell-image"><span class="material-icons" title="Görsel">image</span></div>
       <div id="p-name" class="header-cell cell-name"><button title="Ada Göre Sırala">Ürün Adı</button></div>
       <div id="p-Oprice" class="header-cell cell-price-old"><button title="Fiyata Göre Sırala">Eski F.</button></div>
+      <div id="p-prevPrice" class="header-cell cell-price-prev"><button title="Önceki Fiyata Göre Sırala">Önceki
+          F.</button></div>
       <div id="p-percent" class="header-cell cell-percent"><button title="Değişime Göre Sırala">%</button></div>
-      <div id="p-Nprice" class="header-cell cell-price-new"><button title="Fiyata Göre Sırala">Güncel</button></div>
+      <div id="p-Nprice" class="header-cell cell-price-new"
+        style="position: relative; display: flex; align-items: center; justify-content: center; gap: 4px;">
+        <button id="btn-nprice-main" style="padding-right:0;" title="Sırala">Güncel</button>
+        <span id="btn-nprice-menu-trigger" class="sort-dropdown-trigger" title="Sıralama Kriterini Seç">▼</span>
+
+        <div id="nprice-menu" class="group-menu" style="display: none; top: 100%; right: -10px; min-width: 130px;">
+          <div class="group-menu-option" id="opt-sort-price">💰 Fiyata Göre</div>
+          <div class="group-menu-option" id="opt-sort-date">🕒 Tarihe Göre</div>
+        </div>
+      </div>
       <div id="updateStatus-button" class="header-cell cell-status"><button class="action-button"
           title="Fiyat Değişimlerini Onayla">✅</button></div>
       <div id="delete-all" class="header-cell cell-actions"><button class="action-button delete-button"

@@ -15,13 +15,7 @@ export async function sendNotification(product, oldPrice, newPrice, type) {
   const percentageChange = oldPriceValue ? (priceChange / oldPriceValue) * 100 : 0;
   const percentChangeRounded = Math.round(percentageChange);
 
-  const addNotificationListener = (notificationId) => {
-    browser.notifications.onClicked.addListener((id) => {
-      if (id === notificationId) {
-        browser.tabs.create({ url: product.url });
-      }
-    });
-  };
+
 
   if (type === "stock") {
     const notificationId = `stock_${product.id}`;
@@ -32,7 +26,7 @@ export async function sendNotification(product, oldPrice, newPrice, type) {
         title: "",
         message: `Ürün Stoğa Girdi: ${newPrice}\n${product.name}`,
       });
-      addNotificationListener(notificationId);
+
     }
     if (settings.notificationType === "n_on" && settings.stockNotification === "s_on") {
       playNotificationSound(settings.stockSound);
@@ -46,7 +40,7 @@ export async function sendNotification(product, oldPrice, newPrice, type) {
         title: "",
         message: `İndirim ${oldPrice} -> ${newPrice} (%${percentChangeRounded})\n${product.name}`,
       });
-      addNotificationListener(notificationId);
+
     }
     if (settings.notificationType === "n_on" && settings.discountNotification === "d_on") {
       playNotificationSound(settings.discountSound);
@@ -60,7 +54,7 @@ export async function sendNotification(product, oldPrice, newPrice, type) {
         title: "",
         message: `Zam ${oldPrice} -> ${newPrice} (%${percentChangeRounded})\n${product.name}`,
       });
-      addNotificationListener(notificationId);
+
     }
     if (settings.notificationType === "n_on" && settings.priceIncreaseNotification === "pi_on") {
       playNotificationSound(settings.priceIncreaseSound);
@@ -68,11 +62,17 @@ export async function sendNotification(product, oldPrice, newPrice, type) {
   }
 }
 
-export async function playNotificationSound(url) {
+export async function playNotificationSound(soundName) {
+  let soundUrl = soundName;
+  // Eğer tam URL değilse, extension içindeki 'sound' klasöründen al
+  if (!soundName.startsWith("http") && !soundName.startsWith("chrome-extension")) {
+    soundUrl = browser.runtime.getURL(`sound/${soundName}.mp3`);
+  }
+
   try {
     await ensureOffscreenDocument();
     // DÜZELTME: Hata kontrolü için callback eklendi
-    browser.runtime.sendMessage({ action: "playNotificationSound", soundUrl: url }, () => {
+    browser.runtime.sendMessage({ action: "playNotificationSound", soundUrl: soundUrl }, () => {
       if (browser.runtime.lastError) {
         console.error("playNotificationSound hatası:", browser.runtime.lastError.message);
       }

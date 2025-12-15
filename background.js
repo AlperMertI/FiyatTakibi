@@ -59,7 +59,23 @@ export function createTabPromise(product) {
     browser.runtime.onMessage.addListener(messageListener);
 
     // 2. Sekmeyi oluştur (aktif olmadan)
-    browser.tabs.create({ url: product.url, active: false })
+    // Önce uygun bir pencere bul
+    browser.windows.getAll({ windowTypes: ['normal'] })
+      .then(windows => {
+        let createProps = { url: product.url, active: false };
+        if (windows.length > 0) {
+          // Varsa ilk normal pencereyi kullan (odaklanmış olması tercih edilir ama şart değil)
+          // Son odaklanana göre sıralama garantisi yok ama genellikle bir tane vardır.
+          // Listenin sonuncusu genellikle son aktif olandır Chrome'da ama garanti değil.
+          // Basitçe ilkini alıyoruz.
+          const focused = windows.find(w => w.focused);
+          createProps.windowId = focused ? focused.id : windows[0].id;
+        }
+        // Pencere yoksa windowId eklemiyoruz, bu durumda "No current window" hatası devam edebilir
+        // ama kullanıcı tarayıcıyı tamamen kapattıysa zaten yapacak bir şey yok (headless çalışmıyoruz).
+
+        return browser.tabs.create(createProps);
+      })
       .then(tab => {
         tabId = tab.id;
 
@@ -214,6 +230,32 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // ESKİ HB KAZIMA İLE İLGİLİ TÜM LİSTENER'LAR KALDIRILDI
+});
+
+// --- BİLDİRİM TIKLAMA OLAYI (PERSISTENT) ---
+browser.notifications.onClicked.addListener((notificationId) => {
+  // notificationId formatları: "stock_ID", "discount_ID", "priceIncrease_ID"
+  let productId = null;
+
+  if (notificationId.startsWith("stock_")) {
+    productId = notificationId.replace("stock_", "");
+  } else if (notificationId.startsWith("discount_")) {
+    productId = notificationId.replace("discount_", "");
+  } else if (notificationId.startsWith("priceIncrease_")) {
+    productId = notificationId.replace("priceIncrease_", "");
+  }
+
+  if (productId) {
+    getAllFromSync(productId)
+      .then((product) => {
+        if (product && product.url) {
+          browser.tabs.create({ url: product.url });
+        } else {
+          console.warn(`AFT: Bildirim tıklandı ama ürün bulunamadı (ID: ${productId})`);
+        }
+      })
+      .catch((err) => console.error("AFT: Bildirim tıklama hatası:", err));
+  }
 });
 
 

@@ -1,6 +1,6 @@
 // price.js
 import { getAllFromSync, saveToDB, getAllFromDB, saveToSync } from "./storage.js";
-import { updateProductPrice, updateBadgeCount } from "./update.js"; // updateProductPrice'ı import ediyoruz
+import { updateProductPrice, updateBadgeCount } from "./update.js";
 import { sendNotification } from "./notifications.js";
 import { sendPriceChange } from "./sendUrl.js";
 import { parsePrice } from "./price-utils.js";
@@ -9,7 +9,7 @@ if (typeof browser === "undefined") {
   var browser = chrome;
 }
 
-export async function checkPrices(callbacks = {}) { // 1. imza değişti
+export async function checkPrices(callbacks = {}) {
   const settings = (await browser.storage.sync.get("settings")).settings || {};
   const CONCURRENT_LIMIT = parseInt(settings.concurrentCheckLimit || 4, 10);
   const followList = await getAllFromSync();
@@ -18,10 +18,8 @@ export async function checkPrices(callbacks = {}) { // 1. imza değişti
     return true;
   }
 
-  // 2. Callback'ler objeden alınır
   const { onProductProcessed, onProductProcessStart } = callbacks;
 
-  // DB'den ekstra veriyi (resim, no) al
   const dbData = await getAllFromDB();
   const dbMap = new Map(dbData.map(p => [p.id, p]));
 
@@ -35,7 +33,6 @@ export async function checkPrices(callbacks = {}) { // 1. imza değişti
     });
   });
 
-  // Görseli eksik olan ürünleri ön-güncelle (DB ve Sync)
   const productsToNukeForImage = [];
   const needsImageMap = new Map();
 
@@ -50,22 +47,18 @@ export async function checkPrices(callbacks = {}) { // 1. imza değişti
   }
 
   if (productsToNukeForImage.length > 0) {
-    console.log(`Eksik görseller için ${productsToNukeForImage.length} ürün güncellenmeye zorlanıyor.`);
     await saveToDB(productsToNukeForImage);
     await saveToSync(followList);
   }
 
-  // 3. Fiyat çekme işlemleri için bir kuyruk sistemi
   const updatedProductsList = [];
-  const queue = [...followList]; // Kopyalanmış bir kuyruk
+  const queue = [...followList];
 
-  // Worker fonksiyonu: Kuyruktan iş alır ve bitirir
   async function worker() {
     while (queue.length > 0) {
-      const product = queue.shift(); // Kuyruktan bir ürün al
+      const product = queue.shift();
       if (!product) continue;
 
-      // 4. İşleme başlama callback'ini çağır
       if (onProductProcessStart) {
         onProductProcessStart(product);
       }
@@ -75,35 +68,28 @@ export async function checkPrices(callbacks = {}) { // 1. imza değişti
       try {
         const updatedProduct = await updateProductPrice(product, needsImageUpdate);
 
-        // 5. İşlem bitiş callback'ini çağır
         if (onProductProcessed) {
           onProductProcessed(updatedProduct);
         }
-        updatedProductsList.push(updatedProduct); // Sonuçları topla
+        updatedProductsList.push(updatedProduct);
       } catch (err) {
         console.error(`Fiyat güncelleme hatası (ID: ${product.id}):`, err);
         product.status = "‼️";
-
-        // 6. Hata durumunda işlem bitiş callback'ini çağır
         if (onProductProcessed) {
           onProductProcessed(product);
         }
-        updatedProductsList.push(product); // Hatalı bile olsa listeye ekle
+        updatedProductsList.push(product);
       }
     }
   }
 
-  // CONCURRENT_LIMIT kadar çalıştırıcı (worker) başlat
   const workers = [];
   for (let i = 0; i < CONCURRENT_LIMIT; i++) {
     workers.push(worker());
   }
 
-  // 7. Tüm paralel işlemlerin (fetch + save) tamamlanmasını bekle
   await Promise.all(workers);
 
-  // 8. Bildirimleri gönder (Bu kısım değişmedi)
-  let discountedProductCount = 0;
   for (const product of updatedProductsList) {
     if (product.status === "‼️") continue;
 
@@ -111,19 +97,29 @@ export async function checkPrices(callbacks = {}) { // 1. imza değişti
     const newPriceString = product.newPrice;
     const newPrice = parsePrice(newPriceString);
 
+    // Değişim zamanı için şu anı al
+    const nowISO = new Date().toISOString();
+    let hasChange = false;
+
     if (newPrice > 0 && !oldPrice) {
       product.status = "➕";
+      product.lastChangeDate = nowISO; // Değişim tarihi kaydet
+      hasChange = true;
       await sendNotification(product, "Stokta Yok", newPriceString, "stock");
       await sendPriceChange(product.id, newPriceString);
-      discountedProductCount++;
     } else if (!isNaN(newPrice) && newPrice > 0 && newPrice < oldNewPrice) {
       product.status = "⬇️";
+      product.lastChangeDate = nowISO; // Değişim tarihi kaydet
+      product.previousPrice = oldNewPriceString; // Önceki fiyatı kaydet
+      hasChange = true;
       console.log(`Fiyat düştü -> ${product.id}: ${oldNewPriceString} -> ${newPriceString}`);
       await sendNotification(product, oldNewPriceString, newPriceString, "discount");
       await sendPriceChange(product.id, newPriceString);
-      discountedProductCount++;
     } else if (!isNaN(newPrice) && newPrice > oldNewPrice) {
       product.status = "⬆️";
+      product.lastChangeDate = nowISO; // Değişim tarihi kaydet
+      product.previousPrice = oldNewPriceString; // Önceki fiyatı kaydet
+      hasChange = true;
       console.log(`Fiyat arttı -> ${product.id}: ${oldNewPriceString} -> ${newPriceString}`);
       await sendNotification(product, oldNewPriceString, newPriceString, "priceIncrease");
       await sendPriceChange(product.id, newPriceString);

@@ -69,11 +69,9 @@ body {
   background-color: var(--card-background);
   color: var(--text-color);
   width: 200px;
-  /* Genişlettik */
   padding: 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: 20px;
-  /* Modern yuvarlak arama çubuğu */
   font-size: 13px;
   box-shadow: 0 1px 3px var(--shadow-color);
   transition: all 0.2s ease;
@@ -91,7 +89,6 @@ body {
   color: var(--text-color-secondary);
   border: none;
   border-radius: 50%;
-  /* Tam yuvarlak buton */
   padding: 6px;
   cursor: pointer;
   display: flex;
@@ -115,11 +112,10 @@ body {
   flex-direction: column;
 }
 
-/* Ortak Grid Yapısı (Başlık ve Satırlar için) */
 .product-list-header,
 .product-row {
   display: grid;
-  grid-template-columns: 10px 40px 50px 1fr 100px 60px 100px 40px 40px;
+  grid-template-columns: 10px 35px 45px 1fr 70px 80px 50px 90px 35px 30px;
   gap: 8px;
   align-items: center;
   padding: 0 10px;
@@ -166,19 +162,17 @@ body {
   font-size: 20px;
 }
 
-/* Ürün Satırları (Kart Görünümü) */
+/* Ürün Satırları */
 #product-tbody {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  /* Kartlar arası boşluk */
 }
 
 .product-row {
   background-color: var(--card-background);
   border-radius: 8px;
   padding: 12px 10px;
-  /* Kart içi boşluk */
   box-shadow: 0 2px 4px var(--shadow-color);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
@@ -190,12 +184,9 @@ body {
   z-index: 100;
 }
 
-/* Satır Hücreleri */
 .product-row>div {
-  /* Hücre içeriğini dikey ortala */
   display: flex;
   align-items: center;
-  /* Kırpmayı önle */
   min-width: 0;
   font-size: 13px;
 }
@@ -203,18 +194,17 @@ body {
 .cell-image {
   justify-content: center;
   text-align: center;
-  /* Satır yüksekliğine yakın bir boyut */
   height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  /* Hover efekti için önemli */
 }
 
 .cell-group,
 .cell-number,
 .cell-price-old,
+.cell-price-prev,
 .cell-price-new,
 .cell-status,
 .cell-actions {
@@ -224,9 +214,8 @@ body {
 
 .cell-name {
   justify-content: flex-start;
-  gap: 8px;
-  /* Resim ve link arası boşluk */
-  /* Uzun isimler için kırpma */
+  gap: 0;
+  /* Değiştirildi: Alt alta dizileceği için gap'i düşürdüm */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -246,8 +235,15 @@ body {
   text-decoration: underline;
 }
 
-.cell-price-old {
+
+.cell-price-old,
+.cell-price-prev {
   color: var(--text-color-secondary);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .cell-status {
@@ -277,9 +273,8 @@ body {
   border-color: #ff4d4d;
 }
 
-/* Akordiyon (Grafik) */
+/* Akordiyon */
 .accordion-row {
-  /* Tüm grid sütunlarını kapla */
   grid-column: 1 / -1;
 }
 
@@ -289,7 +284,6 @@ body {
   background-color: var(--card-background);
   border-top: 1px solid var(--border-color);
   margin: 0 -10px -12px -10px;
-  /* Kartın kenarlarına yay */
   border-radius: 0 0 8px 8px;
 }
 
@@ -315,7 +309,6 @@ body {
   padding: 1px;
 }
 
-/* Diğer Stiller */
 #last-update-time {
   display: block;
   text-align: right;
@@ -331,7 +324,6 @@ body {
   visibility: visible;
   opacity: 1;
   object-fit: contain;
-
   transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease, position 0s ease 0.2s;
   transform-origin: center center;
   z-index: 1;
@@ -347,14 +339,11 @@ body {
 
 .preview-img:hover {
   position: absolute;
-  /* Ekranda daha çok yer kaplaması için */
   transform: scale(5);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  /* Geçişin hemen olmaması için küçük bir gecikme */
   transition: transform 0.2s ease 0.1s, box-shadow 0.2s ease 0.1s, position 0s ease 0.1s;
 }
 
-/* Fiyat Flaşı Animasyonu */
 @keyframes priceFlash {
   0% {
     background-color: transparent;
@@ -373,7 +362,6 @@ body {
   animation: priceFlash 1.5s ease-out;
 }
 
-/* Yükleme İkonu */
 @keyframes spin {
   0% {
     transform: rotate(0deg);
@@ -398,7 +386,6 @@ body {
   color: #888;
 }
 
-/* Güncelleme Butonu Yükleme */
 #update-button.loading {
   pointer-events: none;
   opacity: 0.7;
@@ -420,7 +407,6 @@ body {
   transition: opacity 0.5s;
   z-index: 1000;
   color: white;
-  /* Beyaz yazı rengi ekledim */
 }
 
 .toast.visible {
@@ -453,12 +439,14 @@ body {
     color: #777;
     border-top-color: #333;
   }
+
+  .chart-chevron-icon {
+    color: #999;
+  }
 }
 
 .cell-status {
-  /* İkonun tıklanabilir olması için */
   cursor: pointer;
-  /* İkonu ortalamak için */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -469,12 +457,6 @@ body {
   color: #888;
   margin-left: 2px;
   vertical-align: middle;
-}
-
-@media (prefers-color-scheme: dark) {
-  .chart-chevron-icon {
-    color: #999;
-  }
 }
 
 .cell-percent {
@@ -489,4 +471,33 @@ body {
 
 .cell-percent.negative {
   color: #2ECC71;
+}
+
+/* Yeni Eklenen Tarih Metni Stili */
+.sub-text {
+  font-size: 10px;
+  color: #888;
+  margin-top: 2px;
+  font-weight: normal;
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  .sub-text {
+    color: #777;
+  }
+}
+
+.sort-dropdown-trigger {
+  cursor: pointer;
+  font-size: 10px;
+  padding: 4px;
+  color: var(--text-color-secondary);
+  transition: color 0.2s;
+}
+
+.sort-dropdown-trigger:hover {
+  color: var(--text-color);
+  background-color: var(--header-button-hover);
+  border-radius: 4px;
 }

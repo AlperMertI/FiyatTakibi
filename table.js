@@ -1,29 +1,12 @@
 // popup > table.js
-import { getAllFromSync, saveToSync, removeFromSync, getAllFromDB, saveToDB, removeFromDB } from "./storage.js";
+import { getAllFromSync, saveToSync, getAllFromDB, saveToDB, removeFromDB } from "./storage.js";
 import { fetchProductData, renderChart } from "./chart.js";
 import { updateBadgeCount } from "./update.js";
 import { showToast } from "./notifications.js";
-import { saveFromChart } from "./sendUrl.js";
-import { parsePrice } from "./price-utils.js";
+import { parsePrice, timeAgo } from "./price-utils.js"; // timeAgo buradan geliyor
 
 let expandedRowIndex = null;
 
-// sortByOrder fonksiyonunu doğrudan buraya alalım
-function sortByOrder(products, order) {
-  const orderMap = new Map(order.map((o) => [o.id, o.no]));
-  return products.sort((a, b) => {
-    const aNo = orderMap.get(a.id) || Infinity;
-    const bNo = orderMap.get(b.id) || Infinity;
-    return aNo - bNo;
-  });
-}
-
-/**
- * Ürün listesini render eder.
- * @param {Array} products - GÖRÜNTÜLENECEK ÜRÜN BİLGİLERİ (pic, no, date vb. içeren tam DB verisi)
- * @param {HTMLElement} productList - product-tbody elementi
- * @param {Function} updateBadgeCount - Badge güncelleme fonksiyonu
- */
 export async function renderProductList(products, productList, updateBadgeCount) {
   productList.textContent = "";
 
@@ -51,17 +34,13 @@ document.addEventListener("click", (event) => {
   });
 });
 
-/**
- * Tek bir ürün satırı (div) oluşturur.
- * @param {Object} product - pic, no, date, name vb. içeren tam DB verisi
- */
 export function createProductRow(product, index, toggleAccordion, updateBadgeCount, productList) {
 
   const productRow = document.createElement("div");
   productRow.className = "product-row";
   productRow.dataset.id = product.id;
 
-  // Grup hücresi
+  // Group Cell
   const groupCell = document.createElement("div");
   groupCell.className = "cell-group";
   const groups = ["🔴", "🟡", "🟢"];
@@ -75,13 +54,11 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
     option.textContent = group;
     option.className = "group-menu-option";
     option.onclick = async () => {
-      // 1. UI'ı anında güncelle
       const newGroup = product.group === group ? "" : group;
       groupCell.textContent = newGroup || "";
       groupMenu.style.display = "none";
 
       try {
-        // 2. Sync storage'ı güncelle (pic olmayan veri)
         const productsFromSync = await getAllFromSync();
         const i = productsFromSync.findIndex((p) => p.id === product.id);
         if (i >= 0) {
@@ -89,10 +66,8 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
           await saveToSync(productsFromSync);
         }
 
-        // 3. DB'yi güncelle (pic olan veri)
         await saveToDB([{ id: product.id, group: newGroup }]);
 
-        // 4. DB'den ve Sync'den son veriyi çek, birleştir, sırala ve render et
         const allDataFromDB = await getAllFromDB();
         const allDataFromSync = await getAllFromSync();
         const dbMap = new Map(allDataFromDB.map(item => [item.id, item]));
@@ -102,8 +77,8 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
         renderProductList(sortedData, productList, updateBadgeCount);
 
       } catch (e) {
-        showToast("Hata oluştu. Lütfen tekrar deneyin.", "error");
-        groupCell.textContent = product.group; // Hata olursa eski gruba dön
+        showToast("Hata oluştu.", "error");
+        groupCell.textContent = product.group;
       }
     };
     groupMenu.appendChild(option);
@@ -117,69 +92,105 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
   groupCell.appendChild(groupMenu);
   productRow.appendChild(groupCell);
 
-  // Sıra numarası
+  // Number Cell
   const noCell = document.createElement("div");
   noCell.className = "cell-number";
-  noCell.textContent = product.no || index + 1;
+  noCell.textContent = index + 1; // Sadece listedeki sırasını gösterir
   productRow.appendChild(noCell);
-  noCell.addEventListener("mouseenter", () => {
-    noCell.title = product.date || "";
-  });
 
+  // Image Cell
   const imageCell = document.createElement("div");
   imageCell.className = "cell-image";
   const previewImg = document.createElement("img");
   previewImg.className = "preview-img";
-  console.log(`AFT (DEBUG) createProductRow (ID: ${product.id}): Satır oluşturuluyor. picUrl: ${product.picUrl}, pic (base64): ${product.pic ? 'var' : 'yok'}`);
 
   if (product.picUrl) {
-    previewImg.src = product.picUrl; // 1. Öncelik: Normal resim URL'si
+    previewImg.src = product.picUrl;
   } else {
-    previewImg.src = ""; // picUrl yoksa
+    previewImg.src = "";
     previewImg.classList.add("no-image");
   }
 
   imageCell.appendChild(previewImg);
-  productRow.appendChild(imageCell); // Görsel hücresini satıra ekle
+  productRow.appendChild(imageCell);
 
+  // Name Cell
   const nameCell = document.createElement("div");
   nameCell.className = "cell-name";
+  nameCell.style.display = "flex";
+  nameCell.style.flexDirection = "column";
+  nameCell.style.alignItems = "flex-start";
+  nameCell.style.justifyContent = "center";
 
   const link = document.createElement("a");
   link.href = product.url;
   link.target = "_blank";
   link.textContent = product.name;
   link.title = product.name;
-
   nameCell.appendChild(link);
+
+  // Eklenme Tarihi
+  if (product.date) {
+    const dateSpan = document.createElement("span");
+    dateSpan.className = "sub-text";
+    dateSpan.textContent = `📅 ${product.date}`;
+    nameCell.appendChild(dateSpan);
+  }
   productRow.appendChild(nameCell);
 
-  // Eski fiyat
+  // Old Price Cell
   const oldPriceCell = document.createElement("div");
   oldPriceCell.className = "cell-price-old";
   oldPriceCell.textContent = product.oldPrice ? product.oldPrice.replace("TL", " TL") : "";
-  oldPriceCell.title = product.date ? `Eklendi: ${product.date}` : "Ekleme tarihi bilinmiyor";
   productRow.appendChild(oldPriceCell);
 
-  // Yüzdesel Değişim Hücresi ---
+  // Previous Price Cell
+  const prevPriceCell = document.createElement("div");
+  prevPriceCell.className = "cell-price-prev";
+
+  if (product.previousPrice) {
+    const pSpan = document.createElement("span");
+    pSpan.textContent = product.previousPrice.replace("TL", " TL");
+    prevPriceCell.appendChild(pSpan);
+
+    const prevP = parsePrice(product.previousPrice);
+    const currP = parsePrice(product.newPrice);
+
+    if (!isNaN(prevP) && !isNaN(currP) && prevP > 0) {
+      const diff = currP - prevP;
+      // Sadece fark varsa ve anlamlıysa göster
+      if (Math.abs(diff) > 0.01) {
+        const ratio = (diff / prevP) * 100;
+        const sub = document.createElement("span");
+        sub.className = "sub-text";
+        sub.style.fontWeight = "bold";
+        sub.textContent = `${ratio > 0 ? '+' : ''}${ratio.toFixed(0)}%`;
+        // Zam (Artış) -> Kırmızı (#E74C3C), İndirim (Azalış) -> Yeşil (#2ECC71)
+        sub.style.color = ratio > 0 ? "#E74C3C" : "#2ECC71";
+        prevPriceCell.appendChild(sub);
+      }
+    }
+  } else {
+    prevPriceCell.textContent = "-";
+  }
+  productRow.appendChild(prevPriceCell);
+
+  // Percent Cell
   const percentCell = document.createElement("div");
   percentCell.className = "cell-percent";
 
   const oldP = parsePrice(product.oldPrice);
-  const newP = parsePrice(product.newPrice); // Bu null olabilir
+  const newP = parsePrice(product.newPrice);
 
-  // Fiyatlar geçerliyse ve değişmişse hesapla
   if (!isNaN(oldP) && !isNaN(newP) && oldP > 0 && newP > 0) {
     if (oldP !== newP) {
       const percentChange = ((newP - oldP) / oldP) * 100;
       percentCell.textContent = `${percentChange > 0 ? '+' : ''}${percentChange.toFixed(0)}%`;
-      // CSS için sınıf ekle
       percentCell.classList.add(percentChange > 0 ? "positive" : "negative");
     } else {
       percentCell.textContent = "0%";
     }
   }
-  // Yeni fiyat henüz yoksa veya stokta yoksa
   else if (!isNaN(oldP) && (product.status === null || product.status === "🟰" || product.status === "✅")) {
     percentCell.textContent = "0%";
   }
@@ -188,9 +199,14 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
   }
   productRow.appendChild(percentCell);
 
-  // Yeni fiyat
+  // New Price Cell
   const newPriceCell = document.createElement("div");
   newPriceCell.className = "cell-price-new";
+  newPriceCell.style.display = "flex";
+  newPriceCell.style.flexDirection = "column";
+  newPriceCell.style.justifyContent = "center";
+
+  const priceText = document.createElement("span");
   const { oldPrice, newPrice } = product;
 
   if (["➕", "⬇️", "⬆️"].includes(product.status)) {
@@ -205,15 +221,27 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
       oldPriceCell.style.textDecoration = "line-through";
     }
 
-    newPriceCell.style.color = !oldP_ ? "#3498DB" : newP_ < oldP_ ? "#2ECC71" : newP_ > oldP_ ? "#E74C3C" : "";
-    newPriceCell.textContent = newPrice.replace("TL", " TL");
+    priceText.style.color = !oldP_ ? "#3498DB" : newP_ < oldP_ ? "#2ECC71" : newP_ > oldP_ ? "#E74C3C" : "";
+    priceText.textContent = newPrice.replace("TL", " TL");
   }
+  newPriceCell.appendChild(priceText);
+
+  // Son Değişim Zamanı (timeAgo fonksiyonu kullanılıyor)
+  const changeSpan = document.createElement("span");
+  changeSpan.className = "sub-text";
+  const ago = timeAgo(product.lastChangeDate);
+  changeSpan.textContent = ago ? `🕒 ${ago}` : "Değişim: -";
+  if (product.lastChangeDate) {
+    changeSpan.title = new Date(product.lastChangeDate).toLocaleString("tr-TR");
+  }
+  newPriceCell.appendChild(changeSpan);
+
   productRow.appendChild(newPriceCell);
 
-  // Durum
+  // Status Cell
   const statusCell = document.createElement("div");
   statusCell.className = "cell-status";
-  // Stokta Yok durumu için "‼️" yerine metin göster
+
   if (product.status === "Stokta Yok") {
     statusCell.textContent = "Stok Yok";
   } else {
@@ -221,17 +249,16 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
   }
 
   const statusTitles = {
-    "➕": "Ürün stoğa girdi (Onaylamak için tıkla)",
-    "⬆️": "Zam geldi (Onaylamak için tıkla)",
-    "⬇️": "İndirim geldi (Onaylamak için tıkla)",
-    "‼️": "Kontrol hatası (Sayfa bulunamadı veya yapı değişti)",
-    "Stokta Yok": "Ürün stokta bulunmuyor",
+    "➕": "Ürün stoğa girdi",
+    "⬆️": "Zam geldi",
+    "⬇️": "İndirim geldi",
+    "‼️": "Hata",
+    "Stokta Yok": "Stokta Yok",
     "🟰": "Fiyat değişmedi",
-    "✅": "Fiyat başarıyla kontrol edildi"
+    "✅": "Kontrol edildi"
   };
   statusCell.title = statusTitles[statusCell.textContent] || "";
 
-  // Grafiğin açılabilir olduğunu gösteren ikon
   const chartIcon = document.createElement("span");
   chartIcon.className = "material-icons chart-chevron-icon";
   chartIcon.textContent = "expand_more";
@@ -261,8 +288,7 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
         const sortedData = mergedData.sort((a, b) => (a.no || Infinity) - (b.no || Infinity));
 
         renderProductList(sortedData, productList, updateBadgeCount);
-
-        showToast("Ürün fiyatı güncellendi.", "success");
+        showToast("Fiyat onaylandı.", "success");
       } catch (error) {
         showToast("Durum güncellerken hata oluştu.", "error");
       }
@@ -270,7 +296,7 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
   };
   productRow.appendChild(statusCell);
 
-  // Silme butonu
+  // Delete Cell
   const deleteCell = document.createElement("div");
   deleteCell.className = "cell-actions";
   const deleteButton = document.createElement("button");
@@ -281,20 +307,13 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
   deleteCell.appendChild(deleteButton);
   productRow.appendChild(deleteCell);
 
-  // Tüm satıra tıklama olayı
   productRow.addEventListener("click", (e) => {
-    // Tıklanan yerin buton olup olmadığını kontrol et
-    // (Butonlara tıklandığında grafik açılmasın)
     if (e.target.closest(".delete-btn, .cell-group, .cell-name a, .cell-status")) {
-      // Eğer durum hücresine tıklandıysa (ikon dahil) veya linke/gruba tıklandıysa
       if (e.target.closest(".cell-status") && !e.target.closest(".cell-status span.material-icons")) {
-        // Sadece ikon değil, hücrenin kendi tıklama olayı (onaylama) ise devam et
       } else if (e.target.closest(".cell-name a, .cell-group, .delete-btn")) {
-        // Link, grup veya sil butonu ise bir şey yapma (varsayılan davranışı yapsın)
         return;
       }
     }
-    // Satırın geri kalanına (veya durum ikonuna) tıklanırsa grafiği aç
     toggleAccordion(index, product, productList);
   });
   return productRow;
@@ -306,14 +325,12 @@ export function toggleAccordion(index, product, productList) {
 
   document.querySelectorAll(".chart-chevron-icon").forEach(icon => icon.textContent = "expand_more");
 
-  // 1. Akordiyon Kapanma/Açılma Mantığı
   if (existingAccordion) {
     existingAccordion.remove();
     if (expandedRowIndex === index) {
-      // Zaten açıksa kapat ve ikonun kapalı olduğundan emin ol
       if (chartIcon) chartIcon.textContent = "expand_more";
       expandedRowIndex = null;
-      return; // <-- KRİTİK: Kapatma işlemi bitti, fonksiyondan çık
+      return;
     }
   }
 
@@ -322,7 +339,6 @@ export function toggleAccordion(index, product, productList) {
       const productRow = productList.querySelector(`div[data-id="${product.id}"]`);
       if (!productRow) return;
 
-      // 1. DOM Elementlerini Oluştur
       const accordion = document.createElement("div");
       accordion.className = "accordion-row";
 
@@ -345,23 +361,20 @@ export function toggleAccordion(index, product, productList) {
 
       const disclaimer = document.createElement("div");
       disclaimer.className = "chart-disclaimer";
-      disclaimer.textContent = "Grafik verileri, Yanyo (yaniyo.com) ve AFT sunucuları tarafından sağlanmaktadır. Veri doğruluğu veya sürekliliği garanti edilmez.";
+      disclaimer.textContent = "Grafik verileri, Yanyo (yaniyo.com) ve AFT sunucuları tarafından sağlanmaktadır.";
 
-      // 2. Elementleri birleştir ve DOM'a ekle (KRİTİK ADIM)
       content.append(chartDiv, noData, disclaimer);
       cell.appendChild(content);
       accordion.appendChild(cell);
-      productRow.insertAdjacentElement("afterend", accordion); // <-- ÖNCE EKLİYORUZ
+      productRow.insertAdjacentElement("afterend", accordion);
 
-      // 3. Veri kontrolü ve grafik çizimi (DOM'a eklendikten sonra)
       if (data && Array.isArray(data) && data.length > 0) {
-        renderChart(`chart-${index}`, data); // <-- ARTIK GÜVENLİ
+        renderChart(`chart-${index}`, data);
       } else {
         noData.style.display = "block";
         noData.textContent = "Grafik verisi bulunamadı. Veri toplama isteği gönderilmiştir.";
       }
 
-      // 4. İkonu ve durumu güncelle
       if (chartIcon) {
         chartIcon.textContent = "expand_less";
       }
@@ -372,11 +385,9 @@ export function toggleAccordion(index, product, productList) {
       console.error("Grafik verisi alınırken hata:", error);
       showToast("Veri alınırken hata oluştu.", "error");
 
-      // 5. Hata durumunda ikonu kapat
       if (chartIcon) {
         chartIcon.textContent = "expand_more";
       }
-      // Hata oluştuğu için akordiyonu kapat
       if (document.querySelector(".accordion-row")) {
         document.querySelector(".accordion-row").remove();
       }
@@ -384,34 +395,26 @@ export function toggleAccordion(index, product, productList) {
     });
 }
 
-
 export async function removeProduct(id, productList, updateBadgeCount) {
   try {
-    // 1. Ürünü *hem* Sync'den *hem* DB'den kaldır.
-    // storage.js'deki bu fonksiyon ikisini de yapıyor.
     await removeFromSync(id);
+    await removeFromDB(id); // Hem Sync hem DB'den sil
 
-    // 2. Kalan verileri al (artık ikisi de eksik olmalı)
     const productsFromSync = await getAllFromSync();
     let productsFromDB = await getAllFromDB();
 
-    // 3. DB'deki kalan ürünleri yeniden numaralandır
-    // (Sıralamayı korumak için önemlidir)
+    // Sıralamayı düzelt
     productsFromDB.sort((a, b) => (a.no || Infinity) - (b.no || Infinity));
     const reorderedDBItems = productsFromDB.map((o, index) => ({ ...o, no: index + 1 }));
 
-    // 4. Yeniden numaralanmış listeyi DB'ye kaydet
-    // (Bu, 'no' alanlarını günceller)
     await saveToDB(reorderedDBItems);
 
-    // 5. Kalan Sync ve DB verisini birleştir (Arayüzü çizmek için)
     const dbDataMap = new Map(reorderedDBItems.map(item => [item.id, item]));
     const mergedData = productsFromSync.map(product => ({
       ...product,
       ...(dbDataMap.get(product.id) || {})
     }));
 
-    // 6. Sıralı, birleşmiş veriyle listeyi yeniden çiz
     const sortedData = mergedData.sort((a, b) => (a.no || Infinity) - (b.no || Infinity));
     renderProductList(sortedData, productList, updateBadgeCount);
 
