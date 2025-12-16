@@ -8,9 +8,20 @@ export function parsePrice(input) {
     // String ise temizle
     let priceString = input.toString();
 
-    // Eğer nokta var ama virgül yoksa (örn: "123.45" - DB formatı)
+    // Eğer nokta var ama virgül yoksa (örn: "123.45" veya "1.599")
     if (priceString.includes('.') && !priceString.includes(',')) {
-        return parseFloat(priceString);
+        // "TL" içeriyorsa bu muhtemelen TR formatıdır
+        if (priceString.toUpperCase().includes('TL')) {
+            // Aşağıdaki temizleme bloğuna düşmesi için burayı atla
+        }
+        // 3 ondalık hane varsa (örn: 1.599), bu binlik ayracıdır. TR formatı kabul et.
+        else if (priceString.split('.').pop().length === 3) {
+            // Aşağıdaki temizleme bloğuna düşmesi için burayı atla
+        }
+        else {
+            // Diğer durumlar (örn: 123.45) -> İngilizce ondalık sayı kabul et
+            return parseFloat(priceString);
+        }
     }
 
     // TR Formatı (örn: "1.234,56 TL")

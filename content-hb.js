@@ -150,7 +150,7 @@ function startPriceObserver() {
             status = "Stokta Yok";
             console.log("AFT (HB) Stokta Yok Bulundu (İlk Kontrol):");
         } else {
-            price = priceText.trim().split(" ")[0];
+            price = priceText.trim(); // "99,90 TL" -> "99,90 TL" (TL kalsın ki parser TR formatı olduğunu anlasın)
             status = "✅";
             console.log("AFT (HB) Fiyat Bulundu (İlk Kontrol):", price);
         }
@@ -175,7 +175,7 @@ function startPriceObserver() {
                 status = "Stokta Yok";
                 console.log("AFT (HB) Stokta Yok Bulundu (Gözlemci):");
             } else {
-                price = priceText.trim().split(" ")[0]; // "99,90 TL" -> "99,90"
+                price = priceText.trim(); // "99,90 TL" -> "99,90 TL"
                 status = "✅";
                 console.log("AFT (HB) Fiyat Bulundu (Gözlemci):", price);
             }
