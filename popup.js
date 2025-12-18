@@ -628,7 +628,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     fetchStatus(); // İlk açılışta hemen kontrol et
-    setInterval(fetchStatus, 1000);
+    setInterval(fetchStatus, 3000); // iGPU Optimization: Increased interval (1s -> 3s)
   }
 
   function updateUIWithState(state) {

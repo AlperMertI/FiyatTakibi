@@ -460,7 +460,7 @@ function monitorAkakceQueue() {
       browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
       clearInterval(interval);
     }
-  }, 1000);
+  }, 5000);
 }
 
 // --- GÜNCELLEME DURUMU YÖNETİMİ ---

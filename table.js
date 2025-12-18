@@ -1,6 +1,6 @@
 // popup > table.js
 import { getAllFromSync, saveToSync, getAllFromDB, saveToDB, removeFromDB, removeFromSync } from "./storage.js";
-import { fetchProductData, renderChart } from "./chart.js";
+import { fetchProductData, renderChart, disposeChart } from "./chart.js";
 import { updateBadgeCount } from "./update.js";
 import { showToast } from "./notifications.js";
 import { parsePrice, timeAgo } from "./price-utils.js"; // timeAgo buradan geliyor
@@ -520,6 +520,9 @@ export function toggleAccordion(index, product, productList) {
   document.querySelectorAll(".chart-chevron-icon").forEach(icon => icon.textContent = "expand_more");
 
   if (existingAccordion) {
+    if (expandedRowIndex !== null) {
+      disposeChart(`chart-${expandedRowIndex}`); // iGPU Optimization: Cleanup ECharts resources
+    }
     existingAccordion.remove();
     if (expandedRowIndex === index) {
       if (chartIcon) chartIcon.textContent = "expand_more";
@@ -528,20 +531,44 @@ export function toggleAccordion(index, product, productList) {
     }
   }
 
+  // UI RESPONSE: Immediately create and show accordion with loader
+  const productRow = productList.querySelector(`div[data-id="${product.id}"]`);
+  if (!productRow) return;
+
+  const accordion = document.createElement("div");
+  accordion.className = "accordion-row";
+
+  const cell = document.createElement("div");
+  cell.style.gridColumn = "1 / -1";
+  cell.className = "accordion-content-wrapper";
+
+  const content = document.createElement("div");
+  content.className = "accordion-content";
+
+  // Loader inside the accordion while fetching
+  const loader = document.createElement("div");
+  loader.className = "chart-initial-loader";
+  loader.innerHTML = '<span class="material-icons rotating">sync</span> Grafik Hazırlanıyor...';
+  loader.style.textAlign = "center";
+  loader.style.minHeight = "250px";
+  loader.style.display = "flex";
+  loader.style.alignItems = "center";
+  loader.style.justifyContent = "center";
+  loader.style.color = "var(--accent-blue)";
+
+  content.appendChild(loader);
+  cell.appendChild(content);
+  accordion.appendChild(cell);
+  productRow.insertAdjacentElement("afterend", accordion);
+
+  // Update Icon
+  if (chartIcon) chartIcon.textContent = "expand_less";
+  expandedRowIndex = index;
+
   fetchProductData(product.id)
-    .then((data) => {
-      const productRow = productList.querySelector(`div[data-id="${product.id}"]`);
-      if (!productRow) return;
-
-      const accordion = document.createElement("div");
-      accordion.className = "accordion-row";
-
-      const cell = document.createElement("div");
-      cell.style.gridColumn = "1 / -1";
-      cell.className = "accordion-content-wrapper";
-
-      const content = document.createElement("div");
-      content.className = "accordion-content";
+    .then(async (data) => {
+      // Clear loader
+      content.innerHTML = "";
 
       const chartDiv = document.createElement("div");
       chartDiv.id = `chart-${index}`;
@@ -551,14 +578,13 @@ export function toggleAccordion(index, product, productList) {
       const noData = document.createElement("div");
       noData.id = `no-data-${index}`;
       noData.className = "no-data-message";
-      noData.textContent = "Veri oluşturma isteği gönderilmiştir.";
-      noData.style = "display: none; text-align: center;";
+      noData.textContent = "Grafik verisi bulunamadı. Veri toplama isteği gönderilmiştir.";
+      noData.style = "display: none; text-align: center; padding: 20px;";
 
       const disclaimer = document.createElement("div");
       disclaimer.className = "chart-disclaimer";
       disclaimer.textContent = "Grafik verileri, Yanyo (yaniyo.com) ve AFT sunucuları tarafından sağlanmaktadır.";
 
-      // AKAKÇE BUTTON & CHART
       const akakceBtn = document.createElement("button");
       akakceBtn.className = "action-button akakce-fetch-btn";
       akakceBtn.style.marginTop = "15px";
@@ -567,133 +593,75 @@ export function toggleAccordion(index, product, productList) {
 
       akakceBtn.onclick = async () => {
         akakceBtn.disabled = true;
-        akakceBtn.innerHTML = '<span class="material-icons rotating" style="vertical-align: middle; font-size: 16px;">sync</span> Akakçe taranıyor... (Arkaplanda)';
-
+        akakceBtn.innerHTML = '<span class="material-icons rotating" style="vertical-align: middle; font-size: 16px;">sync</span> Akakçe taranıyor...';
         try {
           const response = await browser.runtime.sendMessage({
             action: "SEARCH_AND_SCRAPE_AKAKCE_HISTORY",
             productName: product.name
           });
-
           akakceBtn.disabled = false;
-
           if (response && response.success) {
-
             if (response.data && response.data.length > 0) {
-              const formattedAkakceData = response.data.map(d => {
-                const rawDate = d.tarih || d.date;
-                const price = d.fiyat || d.price;
-                let dateStr = rawDate;
-                if (rawDate) {
-                  try {
-                    const dateObj = new Date(rawDate);
-                    dateStr = dateObj.toISOString().split('T')[0];
-                  } catch (e) { dateStr = rawDate; }
-                }
-                return { tarih: dateStr, fiyat: price };
-              });
-
-              // 1. Veriyi Kaydet (Cache)
-              try {
-                const productsFromDB = await getAllFromDB();
-                const i = productsFromDB.findIndex(p => p.id === product.id);
-                if (i >= 0) {
-                  productsFromDB[i].akakceHistory = formattedAkakceData;
-                  if (response.productUrl) {
-                    productsFromDB[i].akakceUrl = response.productUrl;
-                  }
-                  await saveToDB(productsFromDB);
-                } else {
-                  // Eğer DB'de yoksa (sync only?), DB'ye eklemeyi deneyebiliriz ama şimdilik sadece mevcut kaydı güncelliyoruz.
-                  // Veya sadece bellekte tutup render edebiliriz.
-                }
-              } catch (e) { console.error("Akakçe verisi kaydedilemedi", e); }
-
-              // 2. Grafiği Tekrar Çiz (Birleştirilmiş Veri ile)
-              // Mevcut data (Amazon/Yanyo) + Yeni Akakçe verisi
+              const formattedAkakceData = response.data.map(d => ({
+                tarih: (d.tarih || d.date),
+                fiyat: (d.fiyat || d.price)
+              }));
+              const productsFromDB = await getAllFromDB();
+              const idx = productsFromDB.findIndex(p => p.id === product.id);
+              if (idx >= 0) {
+                productsFromDB[idx].akakceHistory = formattedAkakceData;
+                if (response.productUrl) productsFromDB[idx].akakceUrl = response.productUrl;
+                await saveToDB(productsFromDB);
+              }
               renderChart(`chart-${index}`, [
-                { name: 'Amazon' + (data && data.length > 0 ? '' : ''), data: data, color: '#FF9900' },
+                { name: 'Amazon', data: data, color: '#FF9900' },
                 { name: 'Akakçe', data: formattedAkakceData, color: '#3b82f6' }
               ]);
-
+              showToast("Akakçe verileri başarıyla yüklendi", "success");
             } else if (response.summary) {
-              // Highcharts yok ama özet bilgi var
-              // Bunu nasıl göstereceğiz? Ayrı bir div açabiliriz veya toast atabiliriz.
-              // Şimdilik toast ile idare edelim veya buton metnini değiştirip bırakalım.
               showToast(`Özet: Min ${response.summary.low} / Max ${response.summary.high}`, "info");
             } else if (response.currentPrice) {
               showToast(`Güncel Akakçe Fiyatı: ${response.currentPrice}`, "info");
             } else {
-              showToast("Grafik veya fiyat verisi bulunamadı.", "error");
+              showToast("Grafik veya fiyat verisi bulunamadı.", "info");
             }
-
             akakceBtn.style.display = "none";
-            if (response.data && response.data.length > 0) showToast("Akakçe verileri başarıyla yüklendi", "success");
           } else {
-            showToast(response ? (response.error || "Hata oluştu") : "Yanıt yok", "error");
-            akakceBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; font-size: 16px;">error</span> Tekrar Dene';
+            showToast("Veri bulunamadı.", "error");
+            akakceBtn.innerHTML = '<span class="material-icons">refresh</span> Tekrar Dene';
           }
-        } catch (error) {
-          console.error("Akakçe isteği hatası:", error);
+        } catch (e) {
           akakceBtn.disabled = false;
-          akakceBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; font-size: 16px;">error</span> Hata Oluştu';
-          showToast("İletişim hatası: " + error.message, "error");
+          showToast("Hata oluştu.", "error");
         }
       };
 
-      akakceBtn.style.display = "none"; // Başlangıçta gizli başla (Flicker engelleme)
       content.append(chartDiv, noData, disclaimer, akakceBtn);
-      cell.appendChild(content);
-      accordion.appendChild(cell);
-      productRow.insertAdjacentElement("afterend", accordion);
 
       if (data && Array.isArray(data) && data.length > 0) {
-        // DB'den Akakçe verisi de var mı kontrol et
-        getAllFromDB().then(dbProducts => {
-          const stored = dbProducts.find(p => p.id === product.id);
+        const dbProducts = await getAllFromDB();
+        const stored = dbProducts.find(p => p.id === product.id);
+        const hasAkakce = stored && stored.akakceHistory && stored.akakceHistory.length > 0;
 
-          // FPS iyileştirmesi: Animasyonun başlaması için hafif gecikme
-          setTimeout(() => {
-            const hasAkakce = stored && stored.akakceHistory && stored.akakceHistory.length > 0;
-
-            if (hasAkakce) {
-              // Hem Amazon hem Akakçe verisi var, birleştirip çiz
-              renderChart(`chart-${index}`, [
-                { name: 'Amazon', data: data, color: '#FF9900' },
-                { name: 'Akakçe', data: stored.akakceHistory, color: '#3b82f6' }
-              ]);
-            } else {
-              // Sadece Amazon verisi var
-              renderChart(`chart-${index}`, [
-                { name: 'Amazon', data: data, color: '#FF9900' }
-              ]);
-              // Veri yoksa butonu göster
-              akakceBtn.style.display = "flex";
-            }
-          }, 300);
-        });
-      }
-      else {
+        if (hasAkakce) {
+          renderChart(`chart-${index}`, [
+            { name: 'Amazon', data: data, color: '#FF9900' },
+            { name: 'Akakçe', data: stored.akakceHistory, color: '#3b82f6' }
+          ]);
+        } else {
+          renderChart(`chart-${index}`, [
+            { name: 'Amazon', data: data, color: '#FF9900' }
+          ]);
+          akakceBtn.style.display = "flex";
+        }
+      } else {
         noData.style.display = "block";
-        noData.textContent = "Grafik verisi bulunamadı. Veri toplama isteği gönderilmiştir.";
       }
-
-      if (chartIcon) {
-        chartIcon.textContent = "expand_less";
-      }
-
-      expandedRowIndex = index;
     })
     .catch((error) => {
-      console.error("Grafik verisi alınırken hata:", error);
-      showToast("Veri alınırken hata oluştu.", "error");
-
-      if (chartIcon) {
-        chartIcon.textContent = "expand_more";
-      }
-      if (document.querySelector(".accordion-row")) {
-        document.querySelector(".accordion-row").remove();
-      }
+      console.error("Grafik hatası:", error);
+      if (accordion) accordion.remove();
+      if (chartIcon) chartIcon.textContent = "expand_more";
       expandedRowIndex = null;
     });
 }

@@ -332,5 +332,15 @@ function formatDateTime(dateStr) {
   }).format(date);
 }
 
+export function disposeChart(canvasId) {
+  const chartDiv = document.getElementById(canvasId);
+  if (chartDiv) {
+    const chart = echarts.getInstanceByDom(chartDiv);
+    if (chart) {
+      chart.dispose();
+    }
+  }
+}
+
 // Pop-up'ta bu fonksiyon kullanılmadığı için dışa aktarılmasına gerek yok
 // window.getPriceHistory = getPriceHistory;

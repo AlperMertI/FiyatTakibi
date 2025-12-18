@@ -60,18 +60,9 @@ body::before {
     radial-gradient(circle at 20% 80%, var(--aura-2) 0%, transparent 40%);
   z-index: -1;
   pointer-events: none;
-  animation: aura-breathe 15s infinite alternate ease-in-out;
 }
 
-@keyframes aura-breathe {
-  0% {
-    transform: scale(1) translate(0, 0);
-  }
-
-  100% {
-    transform: scale(1.1) translate(-5%, 5%);
-  }
-}
+/* Animation Removed for iGPU optimization */
 
 /* Üst Başlık Alanı */
 #popup-container {
@@ -261,10 +252,11 @@ body::before {
 }
 
 .product-row {
-  background: var(--card-bg);
-  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.05);
+  /* Increased opacity since blur is removed */
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-highlight), var(--shadow-premium);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  /* Simplified shadow */
   border-radius: 16px;
   padding: 16px 14px;
   transition: var(--transition-spring);
@@ -272,6 +264,8 @@ body::before {
   animation-delay: calc(var(--i, 0) * 0.04s);
   opacity: 0;
   position: relative;
+  will-change: transform, opacity;
+  /* GPU optimization */
 }
 
 @keyframes slideUp {
@@ -473,22 +467,45 @@ body::before {
   color: var(--text-secondary);
   background-color: rgba(255, 255, 255, 0.02);
   border-top: 1px solid var(--glass-border);
-  margin: 0 -16px -16px -16px;
+  margin: 0;
   border-radius: 0 0 16px 16px;
-  animation: accordion-slide-in 0.4s var(--transition-spring) forwards;
+  animation: accordion-slide-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   overflow: hidden;
 }
 
 @keyframes accordion-slide-in {
   from {
     opacity: 0;
-    transform: translateY(-10px) scale(0.98);
+    max-height: 0;
+    transform: translateY(-5px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    max-height: 600px;
+    transform: translateY(0);
   }
+}
+
+.rotating {
+  animation: rotate 1.5s linear infinite;
+  display: inline-block;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chart-initial-loader {
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 12px;
+  margin-bottom: 10px;
 }
 
 .no-data-message {
