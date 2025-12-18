@@ -463,6 +463,149 @@ function monitorAkakceQueue() {
   }, 1000);
 }
 
+// --- GÜNCELLEME DURUMU YÖNETİMİ ---
+
+/**
+ * Ürünün Akakçe fazında güncellenip güncellenmeyeceğini kontrol eder.
+ */
+function checkShouldUpdateAkakce(product, dbMap, oneDayAgo) {
+  const hasUrl = !!product.akakceUrl;
+  if (!hasUrl && product.platform === 'HB') return false;
+
+  const dbP = dbMap.get(product.id);
+  const lastFetch = dbP?.lastAkakceFetch;
+
+  if (!lastFetch) return true;
+
+  const lastFetchDate = new Date(lastFetch);
+  return lastFetchDate < oneDayAgo;
+}
+
+/**
+ * Tam güncelleme sürecini başlatan ana fonksiyon.
+ */
+async function startUpdateProcess() {
+  if (updateState.isUpdating) return;
+
+  console.log("AFT (BG): Tam güncelleme başlatılıyor...");
+  try {
+    const [allProducts, dbProducts] = await Promise.all([getAllFromSync(), getAllFromDB()]);
+    const dbMap = new Map(dbProducts.map(p => [p.id, p]));
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+
+    const amazonItems = allProducts.filter(p => p.platform !== 'HB');
+    const hbItems = allProducts.filter(p => p.platform === 'HB');
+    const akakceItems = allProducts.filter(p => checkShouldUpdateAkakce(p, dbMap, oneDayAgo));
+
+    const totalSteps = amazonItems.length + hbItems.length + akakceItems.length;
+
+    updateState = {
+      isUpdating: true,
+      phase: "amazon",
+      processedCount: 0,
+      totalCount: totalSteps,
+      akakceQueueSize: 0,
+      processedIds: [],
+      processingIds: [],
+      queueIds: allProducts.map(p => p.id)
+    };
+
+    console.log(`AFT (BG): ${allProducts.length} ürün, ${totalSteps} adım belirlendi.`);
+    browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
+
+    // PHASE 1: AMAZON
+    await executePriceCheckPhase(amazonItems, "amazon");
+
+    // PHASE 2: HB
+    await executePriceCheckPhase(hbItems, "hb");
+
+    // Mark non-HB products processed if they won't enter Akakce phase
+    allProducts.forEach(p => {
+      if (p.platform !== 'HB' && !updateState.processedIds.includes(p.id)) {
+        if (!checkShouldUpdateAkakce(p, dbMap, oneDayAgo)) {
+          updateState.processedIds.push(p.id);
+        }
+      }
+    });
+
+    // PHASE 3: AKAKCE
+    await executeAkakcePhase(akakceItems);
+
+  } catch (error) {
+    console.error("AFT (BG): Güncelleme hatası!", error);
+    updateState.isUpdating = false;
+    updateState.phase = "error";
+    browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
+  }
+}
+
+async function executePriceCheckPhase(items, phaseName) {
+  if (!updateState.isUpdating) return;
+
+  updateState.phase = phaseName;
+  browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
+
+  await checkPrices({
+    filter: p => (phaseName === 'amazon' ? p.platform !== 'HB' : p.platform === 'HB'),
+    onProductProcessStart: (product) => {
+      if (!updateState.isUpdating) return;
+      updateState.processingIds.push(product.id);
+      updateState.queueIds = updateState.queueIds.filter(id => id !== product.id);
+      browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
+    },
+    onProductProcessed: (product) => {
+      if (!updateState.isUpdating) return;
+      updateState.processedCount++;
+      updateState.processingIds = updateState.processingIds.filter(id => id !== product.id);
+      browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
+    }
+  });
+
+  while (updateState.isPaused && updateState.isUpdating) {
+    await new Promise(r => setTimeout(r, 1000));
+  }
+}
+
+async function executeAkakcePhase(items) {
+  if (!updateState.isUpdating || items.length === 0) return;
+
+  updateState.phase = "akakce";
+  console.log(`AFT (BG): Phase 3 (Akakçe) başlıyor...`);
+
+  items.forEach(product => {
+    const hasAkakceUrl = !!product.akakceUrl;
+    const requestItem = {
+      message: hasAkakceUrl ?
+        { action: "SCRAPE_AKAKCE_HISTORY", url: product.akakceUrl, productName: product.name } :
+        { action: "SEARCH_AND_SCRAPE_AKAKCE_HISTORY", productName: product.name, priority: false },
+      beforeStart: () => {
+        if (!updateState.isUpdating) return false;
+        updateState.processingIds.push(product.id);
+        browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
+        return true;
+      },
+      sendResponse: (response) => {
+        if (!updateState.isUpdating) return;
+        handleAkakceResponse(product, response).then(() => {
+          updateState.processedCount++;
+          updateState.processedIds.push(product.id);
+          updateState.processingIds = updateState.processingIds.filter(id => id !== product.id);
+          updateState.akakceQueueSize = akakceQueue.length;
+          browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
+        });
+      }
+    };
+    akakceQueue.push(requestItem);
+  });
+
+  updateState.akakceQueueSize = akakceQueue.length;
+  browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
+
+  processAkakceQueue();
+  monitorAkakceQueue();
+}
+
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Amazon (ve HB) için IndexedDB kayıtları
   if (message.action === "saveToDB") {
@@ -504,176 +647,9 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
-  // options.js'den gelen anlık güncelleme talebi
-
-  // --- GÜNCELLEME DURUMU YÖNETİMİ ---
   if (message.action === "START_FULL_UPDATE") {
-    if (updateState.isUpdating) {
-      sendResponse({ success: false, message: "Güncelleme zaten devam ediyor." });
-      return false;
-    }
-
-    console.log("AFT (BG): Tam güncelleme başlatılıyor...");
-
-    (async () => {
-      try {
-        const [allProducts, dbProducts] = await Promise.all([getAllFromSync(), getAllFromDB()]);
-        const dbMap = new Map(dbProducts.map(p => [p.id, p]));
-        const now = new Date();
-        const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-
-        const amazonItems = allProducts.filter(p => p.platform !== 'HB');
-        const hbItems = allProducts.filter(p => p.platform === 'HB');
-
-        // Helper: Akakçe güncellenmeli mi?
-        const checkShouldUpdateAkakce = (p) => {
-          const hasUrl = !!p.akakceUrl;
-          if (!hasUrl && p.platform === 'HB') return false;
-
-          const dbP = dbMap.get(p.id);
-          const lastFetch = dbP?.lastAkakceFetch;
-
-          // Eğer hiç taranmadıysa (lastFetch yoksa) mutlaka tara
-          if (!lastFetch) return true;
-
-          const lastFetchDate = new Date(lastFetch);
-          // 24 saat kuralı (lastAkakceFetch üzerinden)
-          return lastFetchDate < oneDayAgo;
-        };
-
-        const akakceItems = allProducts.filter(checkShouldUpdateAkakce);
-        const totalSteps = amazonItems.length + hbItems.length + akakceItems.length;
-
-        updateState = {
-          isUpdating: true,
-          phase: "amazon",
-          processedCount: 0,
-          totalCount: totalSteps,
-          akakceQueueSize: 0,
-          processedIds: [],
-          processingIds: [],
-          queueIds: allProducts.map(p => p.id)
-        };
-
-        console.log(`AFT (BG): Toplam ${allProducts.length} ürün, ${totalSteps} işlem adımı belirlendi.`);
-        console.log(`AFT (BG): Akakçe aşamasına ${akakceItems.length} ürün dahil edildi.`);
-        browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-
-        // PHASE 1: AMAZON
-        console.log(`AFT (BG): Phase 1 (Amazon) başlıyor...`);
-        await checkPrices({
-          filter: p => p.platform !== 'HB',
-          onProductProcessStart: (product) => {
-            if (!updateState.isUpdating) return;
-            updateState.processingIds.push(product.id);
-            updateState.queueIds = updateState.queueIds.filter(id => id !== product.id);
-            browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-          },
-          onProductProcessed: (product) => {
-            if (!updateState.isUpdating) return;
-            updateState.processedCount++;
-            updateState.processingIds = updateState.processingIds.filter(id => id !== product.id);
-            browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-          }
-        });
-
-        if (!updateState.isUpdating) return;
-
-        // PAUSE Check
-        while (updateState.isPaused && updateState.isUpdating) {
-          await new Promise(r => setTimeout(r, 1000));
-        }
-        if (!updateState.isUpdating) return;
-
-        // PHASE 2: HEPSIBURADA
-        updateState.phase = "hb";
-        console.log(`AFT (BG): Phase 2 (HB) başlıyor...`);
-        browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-
-        await checkPrices({
-          filter: p => p.platform === 'HB',
-          onProductProcessStart: (product) => {
-            if (!updateState.isUpdating) return;
-            updateState.processingIds.push(product.id);
-            updateState.queueIds = updateState.queueIds.filter(id => id !== product.id);
-            browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-          },
-          onProductProcessed: (product) => {
-            if (!updateState.isUpdating) return;
-            updateState.processedCount++;
-
-            // Akakçe fazında işlenmeyecekse bitti sayılır
-            if (!checkShouldUpdateAkakce(product)) {
-              updateState.processedIds.push(product.id);
-            }
-
-            updateState.processingIds = updateState.processingIds.filter(id => id !== product.id);
-            browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-          }
-        });
-
-        if (!updateState.isUpdating) return;
-
-        // Amazon bittikten sonra ama Akakçe'ye girmeyecekleri işaretle
-        allProducts.forEach(p => {
-          if (p.platform !== 'HB' && !updateState.processedIds.includes(p.id)) {
-            if (!checkShouldUpdateAkakce(p)) {
-              updateState.processedIds.push(p.id);
-            }
-          }
-        });
-
-        // PAUSE Check
-        while (updateState.isPaused && updateState.isUpdating) {
-          await new Promise(r => setTimeout(r, 1000));
-        }
-        if (!updateState.isUpdating) return;
-
-        // PHASE 3: AKAKÇE
-        updateState.phase = "akakce";
-        console.log(`AFT (BG): Phase 3 (Akakçe) başlıyor...`);
-
-        akakceItems.forEach(product => {
-          const hasAkakceUrl = !!product.akakceUrl;
-          const requestItem = {
-            message: hasAkakceUrl ?
-              { action: "SCRAPE_AKAKCE_HISTORY", url: product.akakceUrl, productName: product.name } :
-              { action: "SEARCH_AND_SCRAPE_AKAKCE_HISTORY", productName: product.name, priority: false },
-            beforeStart: () => {
-              if (!updateState.isUpdating) return false;
-              updateState.processingIds.push(product.id);
-              browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-              return true;
-            },
-            sendResponse: (response) => {
-              if (!updateState.isUpdating) return;
-              handleAkakceResponse(product, response).then(() => {
-                updateState.processedCount++;
-                updateState.processedIds.push(product.id);
-                updateState.processingIds = updateState.processingIds.filter(id => id !== product.id);
-                updateState.akakceQueueSize = akakceQueue.length;
-                browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-              });
-            }
-          };
-          akakceQueue.push(requestItem);
-        });
-
-        updateState.akakceQueueSize = akakceQueue.length;
-        browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-
-        processAkakceQueue();
-        monitorAkakceQueue();
-
-      } catch (error) {
-        console.error("AFT (BG): Güncelleme hatası!", error);
-        updateState.isUpdating = false;
-        updateState.phase = "error";
-        browser.runtime.sendMessage({ action: "UPDATE_STATUS", state: updateState }).catch(() => { });
-      }
-    })();
-
-    sendResponse({ success: true, message: "Güncelleme başlatıldı." });
+    startUpdateProcess();
+    sendResponse({ success: true });
     return false;
   }
 

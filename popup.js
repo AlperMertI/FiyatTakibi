@@ -269,6 +269,9 @@ export async function applySortAndRender(options = {}) {
 
     // RENDER: Sıralama veya veriler değiştiyse ekrana bas
     renderProductList(productsList, document.getElementById("product-tbody"), updateBadgeCount, currentUpdateState);
+    if (typeof updateConfirmButtonState === 'function') {
+      updateConfirmButtonState(productsList);
+    }
 
   } catch (error) {
     console.error("AFT: Sorting error (throttled)", error);
@@ -369,14 +372,14 @@ function updateRowUI(product, productListBody, options = {}) {
 
   if (status === "‼️") {
     priceTextSpan.textContent = "Hata ‼️";
-    priceTextSpan.style.color = "#E74C3C";
+    priceTextSpan.style.color = "#f43f5e";
   } else if (status === "Stokta Yok") {
     priceTextSpan.textContent = "Stok Yok";
-    priceTextSpan.style.color = "#E67E22";
+    priceTextSpan.style.color = "#fbbf24";
   } else if (newPrice) {
     const oldP = parsePrice(oldPrice);
     const newP = parsePrice(newPrice);
-    priceTextSpan.style.color = !oldP ? "#3498DB" : newP < oldP ? "#2ECC71" : newP > oldP ? "#E74C3C" : "";
+    priceTextSpan.style.color = !oldP ? "#3b82f6" : newP < oldP ? "#10b981" : newP > oldP ? "#f43f5e" : "";
     priceTextSpan.textContent = newPrice.replace("TL", " TL");
 
     if (["⬇️", "⬆️", "➕"].includes(status)) {
@@ -544,6 +547,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const updatesForDB = products.map(p => ({ id: p.id, oldPrice: p.oldPrice, newPrice: p.newPrice, status: null }));
             await saveToDB(updatesForDB);
             await loadProductList();
+            updateConfirmButtonState(products);
             showToast("Tüm değişiklikler onaylandı.", "success");
           } else {
             showToast("Onaylanacak yeni bir değişim yok.", "info");
@@ -823,6 +827,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
   }
+
 
   // Başlangıçta durumu kontrol et
   pollUpdateStatus();

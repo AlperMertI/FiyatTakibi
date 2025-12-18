@@ -1,5 +1,5 @@
 // popup > table.js
-import { getAllFromSync, saveToSync, getAllFromDB, saveToDB, removeFromDB } from "./storage.js";
+import { getAllFromSync, saveToSync, getAllFromDB, saveToDB, removeFromDB, removeFromSync } from "./storage.js";
 import { fetchProductData, renderChart } from "./chart.js";
 import { updateBadgeCount } from "./update.js";
 import { showToast } from "./notifications.js";
@@ -12,9 +12,18 @@ export async function renderProductList(products, productList, updateBadgeCount,
 
   if (!products.length) {
     productList.innerHTML = `
-            <div class="product-row" style="justify-content: center; padding: 20px; box-shadow: none;">
-                Henüz ürün takip edilmiyor.
+            <div class="empty-state">
+                <div class="abstract-orb"></div>
+                <h2>Henüz Ürün Yok</h2>
+                <p>Amazon veya Hepsiburada'dan bir ürün linki yapıştırarak takibe başlayabilirsin.</p>
+                <button class="cta-button" id="empty-state-add">İlk Ürünü Ekle</button>
             </div>`;
+
+    // YENİ: Boş durumdaki butona tıklama özelliği
+    productList.querySelector("#empty-state-add")?.addEventListener("click", () => {
+      document.getElementById("add-product-button")?.click();
+    });
+
     updateBadgeCount(products);
     return;
   }
@@ -38,6 +47,7 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
 
   const productRow = document.createElement("div");
   productRow.className = "product-row";
+  productRow.style.setProperty("--i", index);
   productRow.dataset.id = product.id;
 
   // Güncelleme durumunu hemen uygula (Flicker engelleme)
@@ -51,12 +61,313 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
     }
   }
 
-  // 1. ACTION CELL (New Refresh Button Location)
+  // 1. ACTION CELL (Refresh)
+  productRow.appendChild(createActionCell(product, productList));
+
+  // 2. IMAGE CELL
+  productRow.appendChild(createImageCell(product));
+
+  // 3. GROUP CELL
+  productRow.appendChild(createGroupCell(product, productList, updateBadgeCount));
+
+  // 4. NAME CELL
+  productRow.appendChild(createNameCell(product));
+
+  // 5. OLD PRICE CELL
+  productRow.appendChild(createOldPriceCell(product));
+
+  // 6. PREVIOUS PRICE CELL
+  productRow.appendChild(createPrevPriceCell(product));
+
+  // 7. PERCENT CELL
+  productRow.appendChild(createPercentCell(product));
+
+  // 8. NEW PRICE CELL
+  productRow.appendChild(createNewPriceCell(product));
+
+  // 9. STATUS CELL
+  productRow.appendChild(createStatusCell(product, productList, updateBadgeCount, index));
+
+  // 10. DELETE CELL
+  productRow.appendChild(createDeleteCell(product.id, productList, updateBadgeCount));
+
+  // Row Click for Accordion
+  productRow.addEventListener("click", (e) => {
+    if (e.target.closest(".delete-btn, .cell-group, .cell-name a, .cell-status")) {
+      // Status hücresinde fiyata onay verme işlemi varsa veya linke tıklandıysa accordion açma
+      if (e.target.closest(".cell-status") && !e.target.closest(".cell-status .chart-chevron-icon")) {
+        // Ok ikonuna basılmadıysa ama status hücresine basıldıysa (fiyat onayı) açma
+      } else if (e.target.closest(".cell-name a, .cell-group, .delete-btn")) {
+        return;
+      }
+    }
+    toggleAccordion(index, product, productList);
+  });
+
+  return productRow;
+}
+
+/**
+ * Helper: Name Cell
+ */
+function createNameCell(product) {
+  const nameCell = document.createElement("div");
+  nameCell.className = "cell-name";
+  nameCell.style.display = "flex";
+  nameCell.style.flexDirection = "column";
+
+  const link = document.createElement("a");
+  link.href = product.url;
+  link.target = "_blank";
+  link.textContent = product.name;
+  link.title = product.name;
+  nameCell.appendChild(link);
+
+  if (product.date) {
+    const dateSpan = document.createElement("span");
+    dateSpan.className = "sub-text";
+    dateSpan.textContent = `📅 ${product.date}`;
+    nameCell.appendChild(dateSpan);
+  }
+  return nameCell;
+}
+
+/**
+ * Helper: Old Price Cell
+ */
+function createOldPriceCell(product) {
+  const oldPriceCell = document.createElement("div");
+  oldPriceCell.className = "cell-price-old";
+  oldPriceCell.textContent = product.oldPrice ? product.oldPrice.replace("TL", " TL") : "";
+  return oldPriceCell;
+}
+
+/**
+ * Helper: Previous Price Cell
+ */
+function createPrevPriceCell(product) {
+  const prevPriceCell = document.createElement("div");
+  prevPriceCell.className = "cell-price-prev";
+
+  if (product.previousPrice) {
+    const pSpan = document.createElement("span");
+    pSpan.textContent = product.previousPrice.replace("TL", " TL");
+    prevPriceCell.appendChild(pSpan);
+
+    const prevP = parsePrice(product.previousPrice);
+    const currP = parsePrice(product.newPrice);
+
+    if (!isNaN(prevP) && !isNaN(currP) && prevP > 0) {
+      const diff = currP - prevP;
+      if (Math.abs(diff) > 0.01) {
+        const ratio = (diff / prevP) * 100;
+        const sub = document.createElement("span");
+        sub.className = "sub-text";
+        sub.style.fontWeight = "bold";
+        sub.textContent = `${ratio > 0 ? '+' : ''}${ratio.toFixed(0)}%`;
+        sub.style.color = ratio > 0 ? "#f43f5e" : "#10b981";
+        prevPriceCell.appendChild(sub);
+      }
+    }
+  } else {
+    prevPriceCell.textContent = "-";
+  }
+  return prevPriceCell;
+}
+
+/**
+ * Helper: Percent Cell
+ */
+function createPercentCell(product) {
+  const percentCell = document.createElement("div");
+  percentCell.className = "cell-percent";
+
+  const oldP = parsePrice(product.oldPrice);
+  const newP = parsePrice(product.newPrice);
+
+  if (!isNaN(oldP) && !isNaN(newP) && oldP > 0 && newP > 0) {
+    if (oldP !== newP) {
+      const percentChange = ((newP - oldP) / oldP) * 100;
+      percentCell.textContent = `${percentChange > 0 ? '+' : ''}${percentChange.toFixed(0)}%`;
+      percentCell.classList.add(percentChange > 0 ? "positive" : "negative");
+    } else {
+      percentCell.textContent = "0%";
+    }
+  } else if (!isNaN(oldP) && ["🟰", "✅"].includes(product.status)) {
+    percentCell.textContent = "0%";
+  } else {
+    percentCell.textContent = "-";
+  }
+  return percentCell;
+}
+
+/**
+ * Helper: New Price Cell
+ */
+function createNewPriceCell(product) {
+  const newPriceCell = document.createElement("div");
+  newPriceCell.className = "cell-price-new";
+  newPriceCell.style.display = "flex";
+  newPriceCell.style.flexDirection = "column";
+
+  const priceText = document.createElement("span");
+  const { oldPrice, newPrice } = product;
+
+  if (["➕", "⬇️", "⬆️"].includes(product.status)) {
+    newPriceCell.classList.add('price-flash');
+  }
+
+  if (newPrice) {
+    const oldP = parsePrice(oldPrice);
+    const newP = parsePrice(newPrice);
+    priceText.style.color = !oldP ? "#3b82f6" : newP < oldP ? "#10b981" : newP > oldP ? "#f43f5e" : "";
+    priceText.textContent = newPrice.replace("TL", " TL");
+  } else {
+    priceText.textContent = "-";
+  }
+  newPriceCell.appendChild(priceText);
+
+  // Akakçe Info
+  const akakceContainer = document.createElement("div");
+  akakceContainer.className = "akakce-info-container";
+  akakceContainer.style.minHeight = "18px";
+
+  if (product.akakceHistory && product.akakceHistory.length > 0) {
+    const latest = product.akakceHistory.reduce((prev, curr) => (new Date(prev.tarih) > new Date(curr.tarih)) ? prev : curr);
+    const diffDays = Math.floor((new Date() - new Date(latest.tarih)) / (1000 * 60 * 60 * 24));
+    const oldWarning = diffDays > 3 ? ` (${diffDays}g önce)` : '';
+    let html = `<span style="font-weight:600">Akakçe:</span> ${latest.fiyat.toLocaleString("tr-TR")} TL${oldWarning}`;
+    if (product.akakceUrl) {
+      html = `<a href="${product.akakceUrl}" target="_blank" style="text-decoration:none; color:inherit;">${html}</a>`;
+    }
+    akakceContainer.innerHTML = `<div style="font-size:11px; color:#3b82f6; margin-top:2px;">${html}</div>`;
+  } else {
+    akakceContainer.innerHTML = `<div style="font-size:11px; color:transparent; margin-top:2px;">-</div>`;
+  }
+  newPriceCell.appendChild(akakceContainer);
+
+  const changeSpan = document.createElement("span");
+  changeSpan.className = "sub-text";
+  const ago = timeAgo(product.lastChangeDate);
+  changeSpan.textContent = ago ? `🕒 ${ago}` : "Değişim: -";
+  if (product.lastChangeDate) {
+    changeSpan.title = new Date(product.lastChangeDate).toLocaleString("tr-TR");
+  }
+  newPriceCell.appendChild(changeSpan);
+
+  return newPriceCell;
+}
+
+/**
+ * Helper: Status Cell
+ */
+function createStatusCell(product, productList, updateBadgeCount, index) {
+  const statusCell = document.createElement("div");
+  statusCell.className = "cell-status";
+  statusCell.style.display = "flex";
+  statusCell.style.alignItems = "center";
+  statusCell.style.justifyContent = "space-between";
+
+  const statusText = document.createElement("span");
+  const rawStatus = product.status || "";
+  statusText.textContent = rawStatus === "Stokta Yok" ? "Stok Yok" : rawStatus;
+
+  // Apply Pill Styling
+  statusText.className = "status-pill";
+  if (rawStatus === "➕") {
+    statusText.classList.add("plus");
+    statusText.textContent = "STOKTA";
+  } else if (rawStatus === "⬇️") {
+    statusText.classList.add("down");
+    statusText.textContent = "İNDİRİM";
+  } else if (rawStatus === "⬆️") {
+    statusText.classList.add("up");
+    statusText.textContent = "ZAM";
+  } else if (rawStatus === "✅") {
+    statusText.classList.add("none");
+    statusText.innerHTML = '<span class="material-icons" style="font-size: 14px;">check_circle</span>';
+    statusText.style.padding = "4px";
+  } else {
+    statusText.style.display = "none";
+  }
+
+  statusCell.appendChild(statusText);
+
+  const statusTitles = {
+    "➕": "Ürün stoğa girdi",
+    "⬆️": "Zam geldi",
+    "⬇️": "İndirim geldi",
+    "‼️": "Hata",
+    "Stokta Yok": "Stokta Yok",
+    "🟰": "Fiyat değişmedi",
+    "✅": "Kontrol edildi"
+  };
+  statusCell.title = statusTitles[rawStatus] || "";
+
+  const chartIcon = document.createElement("span");
+  chartIcon.className = "material-icons chart-chevron-icon";
+  chartIcon.textContent = "expand_more";
+  chartIcon.style.marginLeft = "auto";
+  statusCell.appendChild(chartIcon);
+
+  // Status Click (Approve Price Change)
+  statusCell.onclick = async (e) => {
+    if (["➕", "⬆️", "⬇️"].includes(product.status)) {
+      e.stopPropagation();
+      const newOldPrice = product.newPrice;
+      const newNewPrice = null;
+      const newStatus = "✅";
+
+      try {
+        const productsFromSync = await getAllFromSync();
+        const i = productsFromSync.findIndex((p) => p.id === product.id);
+        if (i >= 0) {
+          productsFromSync[i].oldPrice = newOldPrice;
+          productsFromSync[i].newPrice = newNewPrice;
+          productsFromSync[i].status = newStatus;
+          await saveToSync(productsFromSync);
+        }
+        await saveToDB([{ id: product.id, oldPrice: newOldPrice, newPrice: newNewPrice, status: newStatus }]);
+
+        const { applySortAndRender } = await import('./popup.js');
+        await applySortAndRender({ forceFetch: true });
+        showToast("Fiyat onaylandı.", "success");
+      } catch (error) {
+        showToast("Hata oluştu.", "error");
+      }
+    }
+  };
+
+  return statusCell;
+}
+
+/**
+ * Helper: Delete Cell
+ */
+function createDeleteCell(productId, productList, updateBadgeCount) {
+  const deleteCell = document.createElement("div");
+  deleteCell.className = "cell-actions";
+  const deleteButton = document.createElement("button");
+  deleteButton.className = "delete-btn";
+  deleteButton.title = "Ürünü Sil";
+  deleteButton.innerHTML = "<span>&times;</span>";
+  deleteButton.onclick = (e) => {
+    e.stopPropagation();
+    removeProduct(productId, productList, updateBadgeCount);
+  };
+  deleteCell.appendChild(deleteButton);
+  return deleteCell;
+}
+
+/**
+ * Helper: Action Cell (Refresh)
+ */
+function createActionCell(product, productList) {
   const actionCell = document.createElement("div");
-  actionCell.className = "cell-actions";
+  actionCell.className = "cell-action-left";
 
   const refreshBtn = document.createElement("button");
-  refreshBtn.className = "icon-btn refresh-btn-premium";
+  refreshBtn.className = "refresh-btn-premium";
   refreshBtn.title = "Sadece bu ürünü güncelle";
   refreshBtn.innerHTML = '<span class="material-icons" style="font-size: 18px;">sync</span>';
   refreshBtn.onclick = async (e) => {
@@ -73,7 +384,7 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
       if (row) {
         const newPriceCell = row.querySelector(".cell-price-new");
         const statusCell = row.querySelector(".cell-status");
-        const statusText = statusCell.querySelector("span");
+        const statusText = statusCell ? statusCell.querySelector("span") : null;
 
         if (newPriceCell) {
           const priceText = newPriceCell.querySelector("span:not(.sub-text)");
@@ -81,29 +392,19 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
             priceText.textContent = (updatedProduct.newPrice || "-").replace("TL", " TL");
             const oldP = parsePrice(updatedProduct.oldPrice);
             const newP = parsePrice(updatedProduct.newPrice);
-            priceText.style.color = !oldP ? "#3498DB" : newP < oldP ? "#2ECC71" : newP > oldP ? "#E74C3C" : "";
+            priceText.style.color = !oldP ? "#3b82f6" : newP < oldP ? "#10b981" : newP > oldP ? "#f43f5e" : "";
           }
 
-          // Akakçe update
-          const existingAkakce = newPriceCell.querySelector("div[style*='color: rgb(52, 152, 219)']");
-          if (existingAkakce) existingAkakce.remove();
-
-          if (updatedProduct.akakceHistory && updatedProduct.akakceHistory.length > 0) {
-            const latest = updatedProduct.akakceHistory[updatedProduct.akakceHistory.length - 1];
-            const akakceDiv = document.createElement("div");
-            akakceDiv.style.fontSize = "11px";
-            akakceDiv.style.color = "#3498DB";
-            akakceDiv.style.marginTop = "2px";
-
-            let contentHTML = `<span style="font-weight:600">Akakçe:</span> ${latest.fiyat.toLocaleString("tr-TR")} TL`;
-            if (updatedProduct.akakceUrl) {
-              contentHTML = `<a href="${updatedProduct.akakceUrl}" target="_blank" style="text-decoration:none; color:inherit;">${contentHTML}</a>`;
+          const existingAkakce = newPriceCell.querySelector(".akakce-info-container");
+          if (existingAkakce) {
+            if (updatedProduct.akakceHistory && updatedProduct.akakceHistory.length > 0) {
+              const latest = updatedProduct.akakceHistory[updatedProduct.akakceHistory.length - 1];
+              let html = `<span style="font-weight:600">Akakçe:</span> ${latest.fiyat.toLocaleString("tr-TR")} TL`;
+              if (updatedProduct.akakceUrl) {
+                html = `<a href="${updatedProduct.akakceUrl}" target="_blank" style="text-decoration:none; color:inherit;">${html}</a>`;
+              }
+              existingAkakce.innerHTML = `<div style="font-size:11px; color:#3b82f6; margin-top:2px;">${html}</div>`;
             }
-            akakceDiv.innerHTML = contentHTML;
-
-            const subText = newPriceCell.querySelector(".sub-text");
-            if (subText) newPriceCell.insertBefore(akakceDiv, subText);
-            else newPriceCell.appendChild(akakceDiv);
           }
         }
 
@@ -122,11 +423,19 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
     }
   };
   actionCell.appendChild(refreshBtn);
-  productRow.appendChild(actionCell);
+  return actionCell;
+}
 
-  // 2. IMAGE CELL (Moved before Group)
+/**
+ * Helper: Image Cell
+ */
+function createImageCell(product) {
   const imageCell = document.createElement("div");
   imageCell.className = "cell-image";
+
+  const imgWrapper = document.createElement("div");
+  imgWrapper.className = "img-wrapper";
+
   const previewImg = document.createElement("img");
   previewImg.className = "preview-img";
 
@@ -137,18 +446,25 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
     previewImg.classList.add("no-image");
   }
 
-  imageCell.appendChild(previewImg);
-  productRow.appendChild(imageCell);
+  imgWrapper.appendChild(previewImg);
+  imageCell.appendChild(imgWrapper);
+  return imageCell;
+}
 
-  // 3. GROUP CELL
+/**
+ * Helper: Group Cell
+ */
+function createGroupCell(product, productList, updateBadgeCount) {
   const groupCell = document.createElement("div");
   groupCell.className = "cell-group";
   groupCell.style.position = "relative";
-  groupCell.style.backgroundColor = "transparent"; // Click helper
 
+  const groupDisplay = document.createElement("span");
+  groupDisplay.className = "group-display";
   const groups = ["🔴", "🟡", "🟢"];
-  product.group = product.group || "";
-  groupCell.textContent = groups.includes(product.group) ? product.group : "";
+  const currentGroup = product.group || "";
+  groupDisplay.textContent = groups.includes(currentGroup) ? currentGroup : "";
+  groupCell.appendChild(groupDisplay);
 
   const groupMenu = document.createElement("div");
   groupMenu.className = "group-menu";
@@ -156,9 +472,10 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
     const option = document.createElement("div");
     option.textContent = group;
     option.className = "group-menu-option";
-    option.onclick = async () => {
+    option.onclick = async (e) => {
+      e.stopPropagation();
       const newGroup = product.group === group ? "" : group;
-      groupCell.textContent = newGroup || "";
+      groupDisplay.textContent = newGroup;
       groupMenu.style.display = "none";
 
       try {
@@ -176,260 +493,24 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
 
       } catch (e) {
         showToast("Hata oluştu.", "error");
-        groupCell.textContent = product.group;
+        groupDisplay.textContent = product.group;
       }
     };
     groupMenu.appendChild(option);
   });
+
   groupCell.onclick = (e) => {
     e.stopPropagation();
-    // Diğer menüleri kapat
     document.querySelectorAll(".group-menu").forEach(m => {
       if (m !== groupMenu) m.style.display = "none";
     });
-
     groupMenu.style.left = "0px";
-    groupMenu.style.top = "30px"; // Sola ve aşağıya sabitle (relative ebeveyne göre)
+    groupMenu.style.top = "30px";
     groupMenu.style.display = groupMenu.style.display === "block" ? "none" : "block";
   };
+
   groupCell.appendChild(groupMenu);
-  productRow.appendChild(groupCell);
-
-  // 4. NAME CELL (No number cell anymore)
-  const nameCell = document.createElement("div");
-  nameCell.className = "cell-name";
-  nameCell.style.display = "flex";
-  nameCell.style.flexDirection = "column";
-  nameCell.style.alignItems = "flex-start";
-  nameCell.style.justifyContent = "center";
-
-  const link = document.createElement("a");
-  link.href = product.url;
-  link.target = "_blank";
-  link.textContent = product.name;
-  link.title = product.name;
-  nameCell.appendChild(link);
-
-  // Eklenme Tarihi
-  if (product.date) {
-    const dateSpan = document.createElement("span");
-    dateSpan.className = "sub-text";
-    dateSpan.textContent = `📅 ${product.date}`;
-    nameCell.appendChild(dateSpan);
-  }
-  productRow.appendChild(nameCell);
-
-  // Old Price Cell
-  const oldPriceCell = document.createElement("div");
-  oldPriceCell.className = "cell-price-old";
-  oldPriceCell.textContent = product.oldPrice ? product.oldPrice.replace("TL", " TL") : "";
-  productRow.appendChild(oldPriceCell);
-
-  // Previous Price Cell
-  const prevPriceCell = document.createElement("div");
-  prevPriceCell.className = "cell-price-prev";
-
-  if (product.previousPrice) {
-    const pSpan = document.createElement("span");
-    pSpan.textContent = product.previousPrice.replace("TL", " TL");
-    prevPriceCell.appendChild(pSpan);
-
-    const prevP = parsePrice(product.previousPrice);
-    const currP = parsePrice(product.newPrice);
-
-    if (!isNaN(prevP) && !isNaN(currP) && prevP > 0) {
-      const diff = currP - prevP;
-      // Sadece fark varsa ve anlamlıysa göster
-      if (Math.abs(diff) > 0.01) {
-        const ratio = (diff / prevP) * 100;
-        const sub = document.createElement("span");
-        sub.className = "sub-text";
-        sub.style.fontWeight = "bold";
-        sub.textContent = `${ratio > 0 ? '+' : ''}${ratio.toFixed(0)}%`;
-        // Zam (Artış) -> Kırmızı (#E74C3C), İndirim (Azalış) -> Yeşil (#2ECC71)
-        sub.style.color = ratio > 0 ? "#E74C3C" : "#2ECC71";
-        prevPriceCell.appendChild(sub);
-      }
-    }
-  } else {
-    prevPriceCell.textContent = "-";
-  }
-  productRow.appendChild(prevPriceCell);
-
-  // Percent Cell
-  const percentCell = document.createElement("div");
-  percentCell.className = "cell-percent";
-
-  const oldP = parsePrice(product.oldPrice);
-  const newP = parsePrice(product.newPrice);
-
-  if (!isNaN(oldP) && !isNaN(newP) && oldP > 0 && newP > 0) {
-    if (oldP !== newP) {
-      const percentChange = ((newP - oldP) / oldP) * 100;
-      percentCell.textContent = `${percentChange > 0 ? '+' : ''}${percentChange.toFixed(0)}%`;
-      percentCell.classList.add(percentChange > 0 ? "positive" : "negative");
-    } else {
-      percentCell.textContent = "0%";
-    }
-  }
-  else if (!isNaN(oldP) && (product.status === null || product.status === "🟰" || product.status === "✅")) {
-    percentCell.textContent = "0%";
-  }
-  else {
-    percentCell.textContent = "-";
-  }
-  productRow.appendChild(percentCell);
-
-  // New Price Cell
-  const newPriceCell = document.createElement("div");
-  newPriceCell.className = "cell-price-new";
-  newPriceCell.style.display = "flex";
-  newPriceCell.style.flexDirection = "column";
-  newPriceCell.style.justifyContent = "center";
-
-  const priceText = document.createElement("span");
-  const { oldPrice, newPrice } = product;
-
-  if (["➕", "⬇️", "⬆️"].includes(product.status)) {
-    newPriceCell.classList.add('price-flash');
-  }
-
-  if (newPrice) {
-    const oldP_ = parsePrice(oldPrice);
-    const newP_ = parsePrice(newPrice);
-
-    if (oldP_ > 0 && newP_ > 0 && oldP_ !== newP_) {
-      oldPriceCell.style.textDecoration = "line-through";
-    }
-
-    priceText.style.color = !oldP_ ? "#3498DB" : newP_ < oldP_ ? "#2ECC71" : newP_ > oldP_ ? "#E74C3C" : "";
-    priceText.textContent = newPrice.replace("TL", " TL");
-  }
-  newPriceCell.appendChild(priceText);
-
-  // Akakçe Fiyat Gösterimi Konteynırı (Gelişmiş & Sabit)
-  const akakceContainer = document.createElement("div");
-  akakceContainer.className = "akakce-info-container";
-  akakceContainer.style.minHeight = "18px"; // Yükseklik zıplamasını önlemek için
-
-  if (product.akakceHistory && product.akakceHistory.length > 0) {
-    const latest = product.akakceHistory.reduce((prev, current) =>
-      (new Date(prev.tarih) > new Date(current.tarih)) ? prev : current
-    );
-    const diffDays = Math.floor((new Date() - new Date(latest.tarih)) / (1000 * 60 * 60 * 24));
-    const oldWarning = diffDays > 3 ? ` (${diffDays}g önce)` : '';
-    let html = `<span style="font-weight:600">Akakçe:</span> ${latest.fiyat.toLocaleString("tr-TR")} TL${oldWarning}`;
-    if (product.akakceUrl) {
-      html = `<a href="${product.akakceUrl}" target="_blank" style="text-decoration:none; color:inherit;">${html}</a>`;
-    }
-    akakceContainer.innerHTML = `<div style="font-size:11px; color:#3498DB; margin-top:2px;">${html}</div>`;
-  } else {
-    akakceContainer.innerHTML = `<div style="font-size:11px; color:transparent; margin-top:2px;">-</div>`;
-  }
-  newPriceCell.appendChild(akakceContainer);
-
-  // Son Değişim Zamanı (timeAgo fonksiyonu kullanılıyor)
-  const changeSpan = document.createElement("span");
-  changeSpan.className = "sub-text";
-  const ago = timeAgo(product.lastChangeDate);
-  changeSpan.textContent = ago ? `🕒 ${ago}` : "Değişim: -";
-  if (product.lastChangeDate) {
-    changeSpan.title = new Date(product.lastChangeDate).toLocaleString("tr-TR");
-  }
-  newPriceCell.appendChild(changeSpan);
-
-  productRow.appendChild(newPriceCell);
-
-  // Status Cell
-  const statusCell = document.createElement("div");
-  statusCell.className = "cell-status";
-  statusCell.style.display = "flex";
-  statusCell.style.alignItems = "center";
-  statusCell.style.justifyContent = "space-between";
-
-  const statusText = document.createElement("span");
-  if (product.status === "Stokta Yok") {
-    statusText.textContent = "Stok Yok";
-  } else {
-    statusText.textContent = product.status || "";
-  }
-  statusCell.appendChild(statusText);
-
-  // refresh button removed from here
-
-  const statusTitles = {
-    "➕": "Ürün stoğa girdi",
-    "⬆️": "Zam geldi",
-    "⬇️": "İndirim geldi",
-    "‼️": "Hata",
-    "Stokta Yok": "Stokta Yok",
-    "🟰": "Fiyat değişmedi",
-    "✅": "Kontrol edildi"
-  };
-  statusCell.title = statusTitles[statusText.textContent] || "";
-
-  // Chevron remains in status cell for accordion
-  const chartIcon = document.createElement("span");
-  chartIcon.className = "material-icons chart-chevron-icon";
-  chartIcon.textContent = "expand_more";
-  chartIcon.style.marginLeft = "auto"; // Push directly to right if flex
-  statusCell.appendChild(chartIcon);
-
-  // click event moved below...
-
-  statusCell.onclick = async () => {
-    if (["➕", "⬆️", "⬇️"].includes(product.status)) {
-      const newOldPrice = product.newPrice;
-      const newNewPrice = null;
-      const newStatus = null;
-
-      try {
-        const productsFromSync = await getAllFromSync();
-        const i = productsFromSync.findIndex((p) => p.id === product.id);
-        if (i >= 0) {
-          productsFromSync[i].oldPrice = newOldPrice;
-          productsFromSync[i].newPrice = newNewPrice;
-          productsFromSync[i].status = newStatus;
-          await saveToSync(productsFromSync);
-        }
-        await saveToDB([{ id: product.id, oldPrice: newOldPrice, newPrice: newNewPrice, status: newStatus }]);
-
-        const allDataFromDB = await getAllFromDB();
-        const allDataFromSync = await getAllFromSync();
-        const dbMap = new Map(allDataFromDB.map(item => [item.id, item]));
-        const mergedData = allDataFromSync.map(p => ({ ...p, ...(dbMap.get(p.id) || {}) }));
-        const sortedData = mergedData.sort((a, b) => (a.no || Infinity) - (b.no || Infinity));
-
-        renderProductList(sortedData, productList, updateBadgeCount);
-        showToast("Fiyat onaylandı.", "success");
-      } catch (error) {
-        showToast("Durum güncellerken hata oluştu.", "error");
-      }
-    }
-  };
-  productRow.appendChild(statusCell);
-
-  // Delete Cell
-  const deleteCell = document.createElement("div");
-  deleteCell.className = "cell-actions";
-  const deleteButton = document.createElement("button");
-  deleteButton.className = "delete-btn";
-  deleteButton.title = "Ürünü Sil";
-  deleteButton.innerHTML = "<span>&times;</span>";
-  deleteButton.onclick = () => removeProduct(product.id, productList, updateBadgeCount);
-  deleteCell.appendChild(deleteButton);
-  productRow.appendChild(deleteCell);
-
-  productRow.addEventListener("click", (e) => {
-    if (e.target.closest(".delete-btn, .cell-group, .cell-name a, .cell-status")) {
-      if (e.target.closest(".cell-status") && !e.target.closest(".cell-status span.material-icons")) {
-      } else if (e.target.closest(".cell-name a, .cell-group, .delete-btn")) {
-        return;
-      }
-    }
-    toggleAccordion(index, product, productList);
-  });
-  return productRow;
+  return groupCell;
 }
 
 export function toggleAccordion(index, product, productList) {
@@ -465,6 +546,7 @@ export function toggleAccordion(index, product, productList) {
       const chartDiv = document.createElement("div");
       chartDiv.id = `chart-${index}`;
       chartDiv.style.width = "100%";
+      chartDiv.style.minHeight = "250px";
 
       const noData = document.createElement("div");
       noData.id = `no-data-${index}`;
@@ -477,13 +559,11 @@ export function toggleAccordion(index, product, productList) {
       disclaimer.textContent = "Grafik verileri, Yanyo (yaniyo.com) ve AFT sunucuları tarafından sağlanmaktadır.";
 
       // AKAKÇE BUTTON & CHART
-      // AKAKÇE BUTTON (Graph merged into main chart)
       const akakceBtn = document.createElement("button");
-      akakceBtn.className = "action-button";
+      akakceBtn.className = "action-button akakce-fetch-btn";
       akakceBtn.style.marginTop = "15px";
       akakceBtn.style.width = "100%";
-      akakceBtn.style.backgroundColor = "#2d3436"; // Akakçe dark gray
-      akakceBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; font-size: 16px;">search</span> Akakçe Fiyat Geçmişini Getir';
+      akakceBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; font-size: 18px; margin-right: 8px;">insights</span> Akakçe Fiyat Geçmişini Getir';
 
       akakceBtn.onclick = async () => {
         akakceBtn.disabled = true;
@@ -533,7 +613,7 @@ export function toggleAccordion(index, product, productList) {
               // Mevcut data (Amazon/Yanyo) + Yeni Akakçe verisi
               renderChart(`chart-${index}`, [
                 { name: 'Amazon' + (data && data.length > 0 ? '' : ''), data: data, color: '#FF9900' },
-                { name: 'Akakçe', data: formattedAkakceData, color: '#3498DB' }
+                { name: 'Akakçe', data: formattedAkakceData, color: '#3b82f6' }
               ]);
 
             } else if (response.summary) {
@@ -561,6 +641,7 @@ export function toggleAccordion(index, product, productList) {
         }
       };
 
+      akakceBtn.style.display = "none"; // Başlangıçta gizli başla (Flicker engelleme)
       content.append(chartDiv, noData, disclaimer, akakceBtn);
       cell.appendChild(content);
       accordion.appendChild(cell);
@@ -570,22 +651,29 @@ export function toggleAccordion(index, product, productList) {
         // DB'den Akakçe verisi de var mı kontrol et
         getAllFromDB().then(dbProducts => {
           const stored = dbProducts.find(p => p.id === product.id);
-          if (stored && stored.akakceHistory && stored.akakceHistory.length > 0) {
-            // Hem Amazon hem Akakçe verisi var, birleştirip çiz
-            renderChart(`chart-${index}`, [
-              { name: 'Amazon', data: data, color: '#FF9900' },
-              { name: 'Akakçe', data: stored.akakceHistory, color: '#3498DB' }
-            ]);
-            // Butonu gizle çünkü veri zaten var
-            akakceBtn.style.display = "none";
-          } else {
-            // Sadece Amazon verisi var
-            renderChart(`chart-${index}`, [
-              { name: 'Amazon', data: data, color: '#FF9900' }
-            ]);
-          }
+
+          // FPS iyileştirmesi: Animasyonun başlaması için hafif gecikme
+          setTimeout(() => {
+            const hasAkakce = stored && stored.akakceHistory && stored.akakceHistory.length > 0;
+
+            if (hasAkakce) {
+              // Hem Amazon hem Akakçe verisi var, birleştirip çiz
+              renderChart(`chart-${index}`, [
+                { name: 'Amazon', data: data, color: '#FF9900' },
+                { name: 'Akakçe', data: stored.akakceHistory, color: '#3b82f6' }
+              ]);
+            } else {
+              // Sadece Amazon verisi var
+              renderChart(`chart-${index}`, [
+                { name: 'Amazon', data: data, color: '#FF9900' }
+              ]);
+              // Veri yoksa butonu göster
+              akakceBtn.style.display = "flex";
+            }
+          }, 300);
         });
-      } else {
+      }
+      else {
         noData.style.display = "block";
         noData.textContent = "Grafik verisi bulunamadı. Veri toplama isteği gönderilmiştir.";
       }

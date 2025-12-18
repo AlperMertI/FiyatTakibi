@@ -121,18 +121,9 @@ export function renderChart(canvasId, inputData) {
     return;
   }
 
-  const container = document.getElementById(canvasId)?.parentNode;
-  if (!container) return;
-
-  // Chart div kontrolü (Varsa temizlemeden yeniden kullanmak daha iyi ama basitlik için...)
-  let chartDiv = document.getElementById(`${canvasId}-echart`);
-  if (!chartDiv) {
-    chartDiv = document.createElement("div");
-    chartDiv.id = `${canvasId}-echart`;
-    chartDiv.style.height = "250px"; // Biraz yükseltelim
-    chartDiv.style.width = "100%";
-    container.appendChild(chartDiv);
-  }
+  const chartDiv = document.getElementById(canvasId);
+  if (!chartDiv) return;
+  const container = chartDiv.parentNode;
 
   const chart = echarts.getInstanceByDom(chartDiv) || echarts.init(chartDiv);
 
@@ -256,57 +247,78 @@ function getChartOption(seriesList, stats) {
 
     return {
       name: s.name,
-      color: color, // Legend rengi için
+      color: color,
       data: s.data.map(d => [d.date, d.fiyat]),
       type: "line",
       smooth: true,
       showSymbol: false,
-      lineStyle: { width: 3, color: color },
+      lineStyle: {
+        width: 4,
+        color: color,
+        shadowBlur: 15,
+        shadowColor: color,
+        shadowOffsetY: 5
+      },
       areaStyle: {
         color: {
           type: "linear",
           x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: isAmazon ? "rgba(255, 153, 0, 0.4)" : "rgba(52, 152, 219, 0.4)" },
-            { offset: 1, color: isAmazon ? "rgba(255, 153, 0, 0.05)" : "rgba(52, 152, 219, 0.05)" }
+            { offset: 0, color: isAmazon ? "rgba(255, 153, 0, 0.3)" : "rgba(52, 152, 219, 0.3)" },
+            { offset: 1, color: "rgba(0, 0, 0, 0)" }
           ]
         }
       },
       markPoint: isAmazon ? {
-        symbol: "pin",
-        symbolSize: 30,
-        label: { show: true, fontSize: 10, fontWeight: 'bold' },
-        itemStyle: { color: color },
+        symbol: "circle",
+        symbolSize: 10,
+        label: { show: false },
+        itemStyle: { color: "#fff", borderColor: color, borderWidth: 2 },
         data: [{ type: "max", name: "Max" }, { type: "min", name: "Min" }]
       } : undefined
     };
   });
 
   return {
-    grid: { left: "5%", right: "5%", top: "15%", bottom: "10%", containLabel: true },
+    grid: { left: "4%", right: "4%", top: 15, bottom: "10%", containLabel: true },
     tooltip: {
       trigger: "axis",
-      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-      borderColor: '#eee',
-      textStyle: { color: '#333' },
-      axisPointer: { type: "cross", label: { backgroundColor: '#6a7985' } },
+      backgroundColor: 'rgba(8, 8, 12, 0.8)',
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+      borderWidth: 1,
+      textStyle: { color: '#fff', fontSize: 13, fontWeight: 500, fontFamily: 'Outfit' },
+      axisPointer: { type: "line", lineStyle: { color: 'rgba(255,255,255,0.1)', width: 2 } },
+      extraCssText: 'backdrop-filter: blur(12px); border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.6); padding: 12px;',
       valueFormatter: (value) => value ? `₺${value.toLocaleString("tr-TR", CONFIG.TL_FORMAT)}` : '-'
     },
     legend: {
       data: seriesList.map(s => s.name),
       top: 0,
-      icon: 'circle'
+      icon: 'circle',
+      textStyle: { color: '#94a3b8', fontSize: 12, fontFamily: 'Outfit' }
     },
     xAxis: {
       type: "time",
       boundaryGap: false,
-      axisLabel: { formatter: { year: '{yyyy}', month: '{MMM}', day: '{d} {MMM}' } }
+      axisLabel: {
+        formatter: { year: '{yyyy}', month: '{MMM}', day: '{d} {MMM}' },
+        color: '#64748b',
+        fontSize: 10
+      },
+      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+      splitLine: { show: false }
     },
     yAxis: {
       type: "value",
       min: (v) => Math.floor(v.min - padding),
       max: (v) => Math.ceil(v.max + padding),
-      axisLabel: { formatter: (val) => `₺${val.toLocaleString("tr-TR")}` }
+      axisLabel: {
+        formatter: (val) => `₺${val.toLocaleString("tr-TR")}`,
+        color: '#64748b',
+        fontSize: 10
+      },
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.03)', type: 'dashed' } }
     },
     series: finalSeries,
   };
