@@ -67,28 +67,33 @@ async function fetchAmazonProductPrice(product, needsImageUpdate) {
     }
 
     // 2. Ürün Görselini Çek
-    try {
-      const imgTagRegex = /<img [^>]*id=["']landingImage["'][^>]*>/i;
-      const imgTagMatch = html.match(imgTagRegex);
-      if (imgTagMatch && imgTagMatch[0]) {
-        const imgTagHtml = imgTagMatch[0];
-        const oldHiresRegex = /data-old-hires=["'](https?:\/\/[^"']+)["']/i;
-        let hiresMatch = imgTagHtml.match(oldHiresRegex);
-        if (hiresMatch && hiresMatch[1]) {
-          picUrl = hiresMatch[1];
-        } else {
-          const srcRegex = /src=["'](https?:\/\/[^"']+)["']/i;
-          let srcMatch = imgTagHtml.match(srcRegex);
-          if (srcMatch && srcMatch[1]) {
-            picUrl = srcMatch[1];
+    // Eğer görsel yoksa veya güncelleme isteniyorsa çek
+    if (!product.picUrl || needsImageUpdate) {
+      try {
+        const imgTagRegex = /<img [^>]*id=["']landingImage["'][^>]*>/i;
+        const imgTagMatch = html.match(imgTagRegex);
+        if (imgTagMatch && imgTagMatch[0]) {
+          const imgTagHtml = imgTagMatch[0];
+          const oldHiresRegex = /data-old-hires=["'](https?:\/\/[^"']+)["']/i;
+          let hiresMatch = imgTagHtml.match(oldHiresRegex);
+          if (hiresMatch && hiresMatch[1]) {
+            picUrl = hiresMatch[1];
+          } else {
+            const srcRegex = /src=["'](https?:\/\/[^"']+)["']/i;
+            let srcMatch = imgTagHtml.match(srcRegex);
+            if (srcMatch && srcMatch[1]) {
+              picUrl = srcMatch[1];
+            }
           }
         }
+      } catch (e) {
+        console.error(`AFT (AMZ) Resim regex hatası (ID: ${id}): ${e.message}`);
       }
-    } catch (e) {
-      console.error(`AFT (AMZ) Resim regex hatası (ID: ${id}): ${e.message}`);
-    }
 
-    console.log(`AFT (DEBUG) fetchAmazonProductPrice (ID: ${id}): Regex ile bulunan picUrl: ${picUrl}`);
+    } else {
+      // Zaten görsel var, eskisini koru
+      picUrl = product.picUrl;
+    }
 
     // 3. Fiyatı Çek
     let priceString = null;
@@ -153,69 +158,105 @@ async function fetchAmazonProductPrice(product, needsImageUpdate) {
   }
 }
 
+// Yardımcı: Akakçe HTML'inden fiyatı parse et
+function parseAkakceHTML(html) {
+  try {
+    // 1. Önce klasik fiyat wrapper'ına bak
+    // <span class="pt_v8">1.234,56 TL</span> veya benzer yapı
+    // Genellikle: <span class="pt_v8">...</span> içinde fiyat yazar
+    const priceMatch = html.match(/<span[^>]*class=["']pt_v8["'][^>]*>([\s\S]*?)<\/span>/i);
+    if (priceMatch && priceMatch[1]) {
+      return priceMatch[1].trim();
+    }
+
+    // 2. Alternatif: <div class="p-d-v8"><span>...</span></div>
+    // Akakçe yapısı bazen değişebilir, en belirgin "pt_v8" class'ıdır (Price Text V8).
+
+    return null;
+  } catch (e) { return null; }
+}
+
+async function fetchAkakcePrice(product) {
+  try {
+    const response = await fetch(product.url, {
+      method: 'GET',
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/5.0 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+      }
+    });
+
+    if (!response.ok) return { price: null, status: "‼️" };
+
+    const html = await response.text();
+    const priceStr = parseAkakceHTML(html);
+
+    if (priceStr) {
+      return { price: priceStr, status: "✅" };
+    } else {
+      // Fiyat bulunamadıysa stokta yok mu?
+      if (html.includes("Satıcı bulunamadı") || html.includes("Stokta yok")) {
+        return { price: null, status: "Stokta Yok" };
+      }
+      return { price: null, status: "‼️" }; // Parse hatası
+    }
+  } catch (e) {
+    console.error("Akakçe Fetch Hatası:", e);
+    return { price: null, status: "‼️" };
+  }
+}
+
 /**
  * Hangi ürünü çekeceğine karar verir ve görseli günceller.
  */
+// Hangi ürünü çekeceğine karar verir ve görseli günceller.
 export async function updateProductPrice(product, needsImageUpdate) {
   const isHB = product.platform === 'HB';
   let priceData;
-  let finalResult;
+  // --- AKAKÇE OPTİMİZASYONU KALDIRILDI ---
+  // Akakçe işlemleri artık background.js üzerinde Phase 2 olarak,
+  // Amazon/HB güncellemeleri tamamlandıktan sonra sırayla yapılacak.
+  // Bu fonksiyon sadece ana platform (Amazon/HB) fiyatını çeker.
 
   try {
+    // DEVAM: Ana Platform (Amazon/HB) Güncellemesi
     if (isHB) {
-      // *** YENİ HB GÜNCELLEME MANTIĞI ***
-      // Arka plana (background.js) mesaj GÖNDERMEK YERİNE,
-      // doğrudan createTabPromise fonksiyonunu ÇAĞIR.
+      // *** MEVCUT HB MANTIĞI ***
       try {
-        // 2. BLOK DEĞİŞTİ:
-        // createTabPromise (priceData) => { price, status, picUrl } dönecek
-        const priceData = await createTabPromise(product);
-        finalResult = { success: true, data: priceData };
+        const result = await createTabPromise(product);
+        priceData = result;
       } catch (error) {
-        console.error(`AFT (HB) createTabPromise hatası (ID: ${product.id}): ${error.message}`);
-        finalResult = { success: false, error: error.message, data: { price: null, status: "‼️", picUrl: null } };
-      }
-      // 3. BLOK DEĞİŞTİ (if/else birleştirildi):
-      if (!finalResult || !finalResult.success) {
-        console.error(`AFT (HB) Kazıma Başarısız (ID: ${product.id}): ${finalResult?.error || 'Bilinmeyen hata'}`);
+        console.error(`AFT (HB) Hata: ${error.message}`);
         priceData = { price: null, status: "‼️", picUrl: null };
-      } else {
-        priceData = finalResult.data;
       }
-      // *** YENİ HB MANTIĞI SONU ***
-
     } else {
-
-      // 2. Fiyatı, durumu ve görseli HTML'den çıkar
+      // *** MEVCUT AMAZON MANTIĞI ***
       priceData = await fetchAmazonProductPrice(product, needsImageUpdate);
     }
 
     const { price, status, picUrl, name } = priceData;
     const dbDataToSave = { id: product.id };
-    product.newPrice = price; // price 'null' olabilir
-    product.status = status;
-    if (name) {
-      product.name = name;
-    }
 
-    dbDataToSave.newPrice = price; // DB'ye de null/yeni fiyatı kaydet
-    dbDataToSave.status = status;
+    // Değerleri güncelle
+    if (product.akakceHistory) dbDataToSave.akakceHistory = product.akakceHistory;
+    if (product.akakceUrl) dbDataToSave.akakceUrl = product.akakceUrl;
 
     if (price) {
       product.newPrice = price;
       dbDataToSave.newPrice = price;
     }
+
     product.status = status;
     dbDataToSave.status = status;
 
+    if (name) {
+      product.name = name;
+      dbDataToSave.name = name;
+    }
+
     if (picUrl) {
-      console.log(`AFT (DEBUG) updateProductPrice (ID: ${product.id}): Veritabanına kaydediliyor... picUrl: ${picUrl}`);
       dbDataToSave.picUrl = picUrl;
       product.picUrl = picUrl;
-      // needsImageUpdate bayrağını (price.js'den gelir) loglama için kullanabiliriz:
-      if (needsImageUpdate) {
-        console.log(`AFT: Eksik görsel bulundu/güncellendi: ${product.id}`);
-      }
     }
 
     await saveToDB([dbDataToSave]);

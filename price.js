@@ -12,13 +12,16 @@ if (typeof browser === "undefined") {
 export async function checkPrices(callbacks = {}) {
   const settings = (await browser.storage.sync.get("settings")).settings || {};
   const CONCURRENT_LIMIT = parseInt(settings.concurrentCheckLimit || 4, 10);
-  const followList = await getAllFromSync();
-  if (followList.length === 0) {
-    await updateBadgeCount([]);
-    return true;
+  const { onProductProcessed, onProductProcessStart, filter } = callbacks;
+  let followList = await getAllFromSync();
+
+  if (filter) {
+    followList = followList.filter(filter);
   }
 
-  const { onProductProcessed, onProductProcessStart } = callbacks;
+  if (followList.length === 0) {
+    return []; // Return empty if no products match filter
+  }
 
   const dbData = await getAllFromDB();
   const dbMap = new Map(dbData.map(p => [p.id, p]));
@@ -71,6 +74,7 @@ export async function checkPrices(callbacks = {}) {
         if (onProductProcessed) {
           onProductProcessed(updatedProduct);
         }
+        await saveToSync([updatedProduct]); // Immediate save for UI responsiveness
         updatedProductsList.push(updatedProduct);
       } catch (err) {
         console.error(`Fiyat güncelleme hatası (ID: ${product.id}):`, err);
@@ -139,5 +143,5 @@ export async function checkPrices(callbacks = {}) {
   const formattedTime = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1).toString().padStart(2, "0")}/${now.getFullYear()} ${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
   await browser.storage.sync.set({ lastUpdateTime: formattedTime });
 
-  return true;
+  return updatedProductsList;
 }

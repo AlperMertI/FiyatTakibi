@@ -115,7 +115,7 @@ body {
 .product-list-header,
 .product-row {
   display: grid;
-  grid-template-columns: 10px 35px 45px 1fr 70px 80px 50px 90px 35px 30px;
+  grid-template-columns: 40px 45px 35px 1fr 70px 80px 50px 90px 40px 30px;
   gap: 8px;
   align-items: center;
   padding: 0 10px;
@@ -212,6 +212,21 @@ body {
   text-align: center;
 }
 
+.cell-group {
+  border-radius: 4px;
+  cursor: pointer;
+  min-height: 32px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.cell-group:hover {
+  background-color: var(--header-button-hover);
+}
+
 .cell-name {
   justify-content: flex-start;
   gap: 0;
@@ -296,17 +311,28 @@ body {
 .group-menu {
   position: absolute;
   display: none;
-  background-color: #313131d0;
-  border: 1px solid #ff0000b2;
-  padding: 3px;
-  z-index: 100;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  border-radius: 5px;
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
+  padding: 6px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px var(--shadow-color);
+  border-radius: 8px;
+  min-width: 40px;
 }
 
 .group-menu-option {
   cursor: pointer;
-  padding: 1px;
+  padding: 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: background-color 0.2s;
+}
+
+.group-menu-option:hover {
+  background-color: var(--header-button-hover);
 }
 
 #last-update-time {
@@ -500,4 +526,159 @@ body {
   color: var(--text-color);
   background-color: var(--header-button-hover);
   border-radius: 4px;
+}
+
+/* Buton Dönüşüm Animasyonu */
+#update-button {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+#update-button.transforming {
+  width: 140px;
+  height: 32px;
+  border-radius: 16px;
+  background: var(--border-color);
+  padding: 0;
+  cursor: default;
+  box-shadow: none;
+}
+
+#update-button .btn-label {
+  transition: opacity 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+#update-button.transforming .btn-label {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.button-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #3498db, #2ecc71);
+  transition: width 0.3s ease;
+  z-index: 1;
+}
+
+.button-phase-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--text-color);
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+#update-button.transforming .button-phase-text {
+  opacity: 1;
+}
+
+/* Satır içi Durum Simgeleri */
+@keyframes pulse {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+}
+
+.status-icon-queued {
+  color: #f1c40f;
+  /* Sarı */
+  animation: pulse 1.5s infinite ease-in-out;
+  font-size: 16px !important;
+}
+
+.status-icon-processing {
+  color: #3498db;
+  /* Mavi */
+  animation: spin 1s linear infinite;
+  font-size: 16px !important;
+}
+
+.updating-price-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* --- PREMİUM TEKİL GÜNCELLEME BUTONU --- */
+.refresh-btn-premium {
+  background: var(--card-background) !important;
+  border: 1px solid var(--shadow-color) !important;
+  border-radius: 6px !important;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #7f8c8d;
+}
+
+.refresh-btn-premium:hover {
+  background: rgba(52, 152, 219, 0.1) !important;
+  border-color: #3498db !important;
+  color: #3498db;
+  transform: rotate(30deg);
+}
+
+.refresh-btn-premium:active {
+  transform: scale(0.9);
+}
+
+.refresh-btn-premium.rotating {
+  animation: spin 1s linear infinite !important;
+  color: #3498db;
+  pointer-events: none;
+}
+
+/* Satır Bazlı Gölgelendirme ve İşaretleme */
+.product-row.queued {
+  border-left: 3px solid #f1c40f80;
+}
+
+.product-row.processing {
+  border-left: 3px solid #3498db80;
+  background-color: rgba(52, 152, 219, 0.04);
+}
+
+.product-row.processed {
+  border-left: 3px solid #2ecc7180;
+  opacity: 0.85;
+}
+
+/* Dinamik Sıralama Animasyonu */
+.product-row {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, background-color 0.3s ease;
 }

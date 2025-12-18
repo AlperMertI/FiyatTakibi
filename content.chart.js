@@ -98,6 +98,63 @@ async function getPriceHistory(asin) {
     // Harici veriyi çekme
     let externalData = await fetchYanyoData(asin);
 
+    // --- AKAKÇE VERİSİ ÇEKME (PARALEL) ---
+    let akakceData = [];
+    let akakceCurrentPrice = null;
+    try {
+      const productTitleEl = document.getElementById("productTitle");
+      const productTitle = productTitleEl ? productTitleEl.textContent.trim() : "";
+      if (productTitle) {
+        // 1. Önce Local DB'den kontrol et (Gereksiz Scrape Önleme)
+        // `asin` değişkeni üst scope'tan geliyor (getPriceHistory argümanı)
+        const dbResponse = await new Promise(resolve => {
+          chrome.runtime.sendMessage({ action: "GET_PRODUCT_DATA", id: asin }, r => resolve(r));
+        });
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        let useStoredData = false;
+
+        if (dbResponse && dbResponse.success && dbResponse.product) {
+          const p = dbResponse.product;
+          if (p.akakceHistory && p.akakceHistory.length > 0) {
+            const lastEntry = p.akakceHistory[p.akakceHistory.length - 1];
+            // Tarih formatı YYYY-MM-DD veya ISO olabilir, kontrol et.
+            const lastDate = (lastEntry.tarih || lastEntry.date || "").split('T')[0];
+
+            if (lastDate === todayStr) {
+              console.log("Bugüne ait Akakçe verisi DB'de bulundu, scrape atlanıyor.");
+              akakceData = p.akakceHistory;
+              useStoredData = true;
+              // currentPrice'ı son entry'den alabiliriz
+              akakceCurrentPrice = lastEntry.fiyat;
+            }
+          }
+        }
+
+        if (!useStoredData) {
+          // Background'a sor (Scrape Trigger)
+          const akakceRes = await new Promise(resolve => {
+            // Kullanıcı sayfadayken öncelikli (priority: true)
+            chrome.runtime.sendMessage({ action: "SEARCH_AND_SCRAPE_AKAKCE_HISTORY", productName: productTitle, priority: true }, response => {
+              resolve(response);
+            });
+          });
+
+          if (akakceRes && (akakceRes.success || akakceRes.partial)) {
+            // ... (rest of logic unchanged)
+            if (akakceRes.data && akakceRes.data.length > 0) {
+              akakceData = akakceRes.data;
+            } else if (akakceRes.currentPrice) {
+              // ...
+            }
+            akakceCurrentPrice = akakceRes.currentPrice;
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Akakçe veri hatası:", err);
+    }
+
     let mergedData = Array.isArray(localDataUpdated) ? localDataUpdated : [];
 
     // Veri Birleştirme Mantığı
@@ -112,22 +169,43 @@ async function getPriceHistory(asin) {
       });
 
       mergedData = [...mergedData, ...externalData];
-
       mergedData.sort((a, b) => new Date(a.tarih) - new Date(b.tarih));
     }
 
-    if (!Array.isArray(mergedData) || mergedData.length < 2) return;
+    if ((!Array.isArray(mergedData) || mergedData.length < 2) && akakceData.length < 2) return;
 
     // Mesaj ve sınıflandırma (mevcut mantık)
     const { mesaj, sınıf } = getPriceMessage(mergedData, nowPrice);
 
-    const labels = mergedData.map((d) => new Date(d.tarih).toLocaleDateString("tr-TR"));
-    const dataPoints = mergedData.map((d) => parseFloat(d.fiyat.replace(' TL', '').replace(',', '.')));
+    // Tarih Birleştirme
+    const allDates = new Set();
+    mergedData.forEach(d => allDates.add(new Date(d.tarih).toISOString().split('T')[0]));
+    akakceData.forEach(d => allDates.add(new Date(d.tarih).toISOString().split('T')[0]));
+
+    const sortedDates = Array.from(allDates).sort();
+    const finalLabels = sortedDates.map(d => new Date(d).toLocaleDateString("tr-TR"));
+
+    // Veri noktalarını eşleştirme
+    // mergedData (Amazon)
+    const amazonMap = new Map();
+    mergedData.forEach(d => {
+      amazonMap.set(new Date(d.tarih).toISOString().split('T')[0], parseFloat(d.fiyat.replace(' TL', '').replace(',', '.')));
+    });
+
+    const amazonPoints = sortedDates.map(dateStr => amazonMap.get(dateStr) || null);
+
+    // akakceData
+    const akakceMap = new Map();
+    akakceData.forEach(d => {
+      akakceMap.set(new Date(d.tarih).toISOString().split('T')[0], d.fiyat);
+    });
+    const akakcePoints = sortedDates.map(dateStr => akakceMap.get(dateStr) || null);
+
     const rawEntries = mergedData;
 
-    insertBox(sınıf, mesaj, labels, dataPoints, rawEntries);
-  } catch (err) {
-    console.error("getPriceHistory hata:", err);
+    insertBox(sınıf, mesaj, finalLabels, amazonPoints, rawEntries, akakcePoints, akakceCurrentPrice);
+  } catch (e) {
+    console.error("Fiyat geçmişi hatası:", e);
   }
 }
 
@@ -200,7 +278,7 @@ function format(date) {
   return d.toLocaleDateString("tr-TR");
 }
 
-function insertBox(cls, html, labels, dataPoints, rawEntries) {
+function insertBox(cls, html, labels, dataPoints, rawEntries, akakcePoints, akakceCurrentPrice) {
   document.querySelector(".price-history-box")?.remove();
 
   const box = document.createElement("div");
@@ -261,21 +339,33 @@ function insertBox(cls, html, labels, dataPoints, rawEntries) {
   const chartContainer = document.querySelector("#chartDiv")?.parentElement;
   if (chartContainer) chartContainer.remove();
 
-  insertChartAfterPPD(labels, dataPoints, rawEntries);
+  insertChartAfterPPD(labels, dataPoints, rawEntries, akakcePoints, akakceCurrentPrice);
 }
 
 //grafik ekleme
-function insertChartAfterPPD(labels, dataPoints, rawEntries) {
+function insertChartAfterPPD(labels, dataPoints, rawEntries, akakcePoints = [], akakceCurrentPrice = null) {
   const ppdEndDiv = document.querySelector("#ppd") || document.querySelector("#hover-zoom-end");
   if (!ppdEndDiv) return;
 
-  if (!Array.isArray(labels) || labels.length === 0 || !Array.isArray(dataPoints) || dataPoints.length === 0) {
+  const hasAmazon = Array.isArray(dataPoints) && dataPoints.length > 0;
+  // Daha sıkı kontrol: null olmayan en az 1 değer varsa
+  const hasAkakce = Array.isArray(akakcePoints) && akakcePoints.some(x => x !== null && x !== undefined && x > 0);
+
+  if (!hasAmazon && !hasAkakce) {
     const noDataDiv = document.createElement("div");
     noDataDiv.id = "chartDiv";
     noDataDiv.className = "no-data";
     noDataDiv.textContent = "Grafik verisi bulunamadı.";
     ppdEndDiv.insertAdjacentElement("afterend", noDataDiv);
     return;
+  }
+
+  // Eğer Akakçe current price varsa, sayfada göster
+  if (akakceCurrentPrice) {
+    // Fiyat gösterim alanı oluştur veya ekle
+    const priceBox = document.createElement("div");
+    priceBox.style.cssText = "padding: 10px; background: #f0f8ff; border: 1px solid #2196F3; margin-bottom: 5px; border-radius: 4px; font-weight: bold; color: #333;";
+    priceBox.innerHTML = `Akakçe Güncel Fiyat: <span style="color:#e91e63; font-size:1.1em;">${akakceCurrentPrice.toLocaleString('tr-TR')} TL</span>`;
   }
 
   const chartDiv = document.createElement("div");
@@ -285,84 +375,139 @@ function insertChartAfterPPD(labels, dataPoints, rawEntries) {
   const container = document.createElement("div");
   container.id = "priceChartContainer";
   container.className = "chart-container";
+
+  if (akakceCurrentPrice) {
+    const infoDiv = document.createElement("div");
+    infoDiv.style.cssText = "margin-bottom:5px; font-size:13px; color:#555;";
+    infoDiv.innerHTML = `<b>Akakçe Fiyatı:</b> ${akakceCurrentPrice.toLocaleString('tr-TR')} TL`;
+    container.appendChild(infoDiv);
+  }
+
   container.appendChild(chartDiv);
 
   const disclaimer = document.createElement("div");
   disclaimer.className = "chart-disclaimer"; // CSS'i styles.css'e eklenecek
-  disclaimer.textContent = "Grafik verileri, Yanyo (yaniyo.com) ve AFT sunucuları tarafından sağlanmaktadır. Veri doğruluğu veya sürekliliği garanti edilmez.";
+  disclaimer.textContent = "Grafik verileri, Yanyo (yaniyo.com), AFT ve Akakçe tarafından sağlanmaktadır.";
   container.appendChild(disclaimer); // Bilgilendirmeyi container'a ekle
 
   ppdEndDiv.insertAdjacentElement("afterend", container);
 
   const chart = echarts.init(chartDiv);
-  const minY = Math.min(...dataPoints) - 10;
-  const maxY = Math.max(...dataPoints) + 10;
+
+  // Min/Max hesapla (her iki seri için)
+  const allValues = [];
+  if (hasAmazon) dataPoints.forEach(v => { if (v) allValues.push(v); });
+  if (hasAkakce) akakcePoints.forEach(v => { if (v) allValues.push(v); });
+
+  const minY = allValues.length ? Math.min(...allValues) - 10 : 0;
+  const maxY = allValues.length ? Math.max(...allValues) + 10 : 100;
+
+  const seriesList = [];
+
+  // Amazon Serisi
+  if (hasAmazon) {
+    seriesList.push({
+      name: 'Amazon/Yanyo',
+      data: dataPoints,
+      type: "line",
+      smooth: true,
+      connectNulls: true, // Boşlukları birleştir
+      lineStyle: { color: "#4575f7", width: 3 },
+      itemStyle: { color: "#4575f7" },
+      showSymbol: false,
+      areaStyle: {
+        color: {
+          type: "linear",
+          x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: "rgba(69, 117, 247, 0.3)" },
+            { offset: 1, color: "rgba(69, 117, 247, 0.05)" },
+          ],
+        },
+      },
+      markPoint: {
+        symbol: "pin",
+        symbolSize: 30, // Biraz büyüttüm
+        data: [
+          { type: "max", itemStyle: { color: "#d32f2f" }, name: "Max" },
+          { type: "min", itemStyle: { color: "#1976d2" }, name: "Min" },
+        ],
+      },
+    });
+  }
+
+  // Akakçe Serisi
+  if (hasAkakce) {
+    seriesList.push({
+      name: 'Akakçe',
+      data: akakcePoints,
+      type: "line",
+      smooth: true,
+      connectNulls: true,
+      lineStyle: { color: "#e91e63", width: 3, type: 'dashed' }, // Ayırt edici olması için kesik çizgi
+      itemStyle: { color: "#e91e63" },
+      showSymbol: false,
+      // Akakçe için alan boyamaya gerek yok veya farklı renk
+    });
+  }
+
+  // YENİ LEGEND MANTIĞI: seriesList'ten isimleri otomatik al
+  const legendData = seriesList.map(s => s.name);
 
   chart.setOption({
-    grid: { left: "0%", right: "0%", bottom: "0%", top: "5%", containLabel: true },
+    legend: {
+      data: legendData,
+      bottom: 0
+    },
+    grid: { left: "2%", right: "2%", bottom: "10%", top: "5%", containLabel: true },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "cross" },
-      formatter: ({ [0]: { dataIndex: i } }) => {
-        const e = rawEntries[i];
-        const d = new Date(e.tarih);
-        const date = d.toLocaleDateString("tr-TR");
-        const time = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-        const val = parseFloat(e.fiyat.replace(' TL', '').replace(',', '.')).toFixed(2);
-        const prevEntry = i > 0 ? rawEntries[i - 1] : null;
-        const prev = prevEntry ? parseFloat(prevEntry.fiyat.replace(' TL', '').replace(',', '.')) : parseFloat(val);
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      formatter: (params) => {
+        // params bir dizidir (her seri için bir obje)
+        if (!params || params.length === 0) return "";
 
-        const diff = prev !== 0 ? ((val - prev) / prev) * 100 : 0;
-        const pct = Math.abs(diff).toFixed(2);
-        const up = val > prev,
-          down = val < prev;
-        const arrow = up ? "⬆" : down ? "⬇" : "⟷";
-        const color = up ? "#D32F2F" : down ? "#388E3C" : "#333";
+        const dateIndex = params[0].dataIndex;
+        const date = labels[dateIndex];
 
-        return `<div style="color:${color};font-weight:bold;">${arrow} %${pct} - ₺${val}</div>
-                <div style="color:#555;">${date} ${time}</div>`;
+        let html = `<div style="font-weight:bold; border-bottom:1px solid #ddd; margin-bottom:5px;">${date}</div>`;
+
+        params.forEach(p => {
+          const val = p.value;
+          if (val !== null && val !== undefined) {
+            const color = p.color;
+            const name = p.seriesName;
+            html += `<div style="color:${color}">● ${name}: <b>${val.toFixed(2)} TL</b></div>`;
+          }
+        });
+
+        // Çakışma uyarısı
+        if (params.length > 1) {
+          const v1 = params[0].value;
+          const v2 = params[1].value;
+          if (v1 === v2 && v1 !== null) {
+            html += `<div style="color:#FF9800; font-size:11px; margin-top:5px;">⚠️ Fiyatlar aynı</div>`;
+          }
+        }
+
+        return html;
       },
     },
     xAxis: {
       type: "category",
       data: labels,
-      axisLabel: { interval: Math.floor(labels.length / 10) },
+      boundaryGap: false,
+      axisLabel: { interval: 'auto' }, // Otomatik aralık
     },
     yAxis: {
       type: "value",
-      min: minY,
+      min: minY > 0 ? minY : 0,
       max: maxY,
       axisLabel: { formatter: (v) => `₺${Math.round(v)}` },
+      splitLine: { show: true, lineStyle: { type: 'dotted' } }
     },
-    series: [
-      {
-        data: dataPoints,
-        type: "line",
-        smooth: true,
-        lineStyle: { color: "#4575f7" },
-        areaStyle: {
-          color: {
-            type: "linear",
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              { offset: 0, color: "rgba(255,0,0,0.3)" },
-              { offset: 1, color: "rgba(0,255,0,0.3)" },
-            ],
-          },
-        },
-        markPoint: {
-          symbol: "pin",
-          symbolSize: 21,
-          data: [
-            { type: "max", itemStyle: { color: "#ff0000" }, label: { formatter: "En Yüksek: ₺{c}", color: "#ff0000", position: "left" } },
-            { type: "min", itemStyle: { color: "#0000ff" }, label: { formatter: "En Düşük: ₺{c}", color: "#0000ff", position: "left" } },
-          ],
-        },
-      },
-    ],
+    series: seriesList,
   });
 }
 

@@ -29,8 +29,21 @@
 
       <button id="update-button" class="action-button update-button" title="Fiyatları Güncelle"
         aria-label="Fiyatları Güncelle">
-        <span class="material-icons icon-small">update</span>
+        <div class="btn-label">
+          <span class="material-icons icon-small">update</span>
+        </div>
+        <div class="button-progress-fill" id="button-progress-fill"></div>
+        <div class="button-phase-text" id="button-phase-text">Hazırlanıyor...</div>
       </button>
+
+      <div id="update-controls" style="display: none; align-items: center; gap: 4px;">
+        <button id="pause-button" class="action-button" title="Duraklat/Devam Et">
+          <span class="material-icons icon-small">pause</span>
+        </button>
+        <button id="stop-button" class="action-button" title="Durdur">
+          <span class="material-icons icon-small">stop</span>
+        </button>
+      </div>
 
       <button id="feedback-button" class="action-button feedback-button" title="Geri Bildirim Gönder"
         aria-label="Geri Bildirim Gönder">
@@ -44,12 +57,14 @@
     </div>
   </div>
 
+
+
   <div id="product-list-container">
     <div class="product-list-header">
-      <div id="p-group" class="header-cell cell-group"><button title="Gruba Göre Sırala">🚦</button></div>
-      <div id="p-number" class="header-cell cell-number"><button title="Numaraya Göre Sırala">#️⃣</button></div>
-      <div id="p-image" class="header-cell cell-image"><span class="material-icons" title="Görsel">image</span></div>
-      <div id="p-name" class="header-cell cell-name"><button title="Ada Göre Sırala">Ürün Adı</button></div>
+      <div class="header-cell cell-action-left">Islem</div> <!-- New Column -->
+      <div class="header-cell cell-image">Gorsel</div>
+      <div class="header-cell cell-group" id="p-group">Grup<button class="sort-dropdown-trigger">▼</button></div>
+      <div class="header-cell cell-name" id="p-name">Urun Adi<button class="sort-dropdown-trigger">▼</button></div>
       <div id="p-Oprice" class="header-cell cell-price-old"><button title="Fiyata Göre Sırala">Eski F.</button></div>
       <div id="p-prevPrice" class="header-cell cell-price-prev"><button title="Önceki Fiyata Göre Sırala">Önceki
           F.</button></div>

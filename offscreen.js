@@ -13,6 +13,20 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true });
     return true; // Asenkron yanıt için
   }
+
+  // --- RISK MODE TEST ---
+  if (message.type === "loadUrl") {
+    const iframe = document.getElementById('test-frame');
+    if (iframe) {
+      iframe.src = message.url;
+      console.log(`Offscreen: Iframe src set to ${message.url}`);
+      sendResponse({ success: true, message: "URL loading started" });
+    } else {
+      console.error("Offscreen: iframe element not found");
+      sendResponse({ success: false, error: "iframe not found" });
+    }
+    return true;
+  }
 });
 
 function playNotificationSound(soundUrl) {

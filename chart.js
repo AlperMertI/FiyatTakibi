@@ -107,41 +107,72 @@ export async function fetchProductData(urun_id) {
   }
 }
 
-export function renderChart(canvasId, data) {
-  if (!Array.isArray(data) || data.length === 0) return;
+export function renderChart(canvasId, inputData) {
+  if (!inputData) return;
+
+  // Veri formatını normalize et: Her zaman [{ name: "...", data: [...], color: "..." }] formatında olsun.
+  // Eski format (direkt array) gelirse "Amazon" varsayalım.
+  let seriesRaw = [];
+  if (Array.isArray(inputData) && inputData.length > 0 && inputData[0].name && Array.isArray(inputData[0].data)) {
+    seriesRaw = inputData;
+  } else if (Array.isArray(inputData)) {
+    seriesRaw = [{ name: "Amazon", data: inputData, color: "#4575f7" }];
+  } else {
+    return;
+  }
 
   const container = document.getElementById(canvasId)?.parentNode;
   if (!container) return;
 
-  const chartDiv = document.createElement("div");
-  chartDiv.id = `${canvasId}-echart`;
-  chartDiv.style.height = "200px";
-  chartDiv.style.width = "100%";
-  container.appendChild(chartDiv);
+  // Chart div kontrolü (Varsa temizlemeden yeniden kullanmak daha iyi ama basitlik için...)
+  let chartDiv = document.getElementById(`${canvasId}-echart`);
+  if (!chartDiv) {
+    chartDiv = document.createElement("div");
+    chartDiv.id = `${canvasId}-echart`;
+    chartDiv.style.height = "250px"; // Biraz yükseltelim
+    chartDiv.style.width = "100%";
+    container.appendChild(chartDiv);
+  }
 
-  const chart = echarts.init(chartDiv);
+  const chart = echarts.getInstanceByDom(chartDiv) || echarts.init(chartDiv);
 
   const initialPeriod = "1yıl";
-  const initialAgg = aggregateData(data, CONFIG.PERIODS[initialPeriod]);
-  const stats = calculateStats(initialAgg);
 
-  chart.setOption(getChartOption(initialAgg, stats));
+  // Helper: Tüm serileri verilen periyoda göre aggregate et
+  const getAggregatedSeries = (periodKey) => {
+    const months = CONFIG.PERIODS[periodKey];
+    return seriesRaw.map(s => ({
+      ...s,
+      data: aggregateData(s.data, months)
+    }));
+  };
 
-  const header = document.querySelector(`#${canvasId}`).previousElementSibling; // Mevcut yerleşimde butonlar tablonun altında olduğu için
+  const initialSeries = getAggregatedSeries(initialPeriod);
+  chart.setOption(getChartOption(initialSeries, null), true); // true = merge yerine override (temiz kurulum)
 
-  // Eğer butonlar zaten varsa, tekrar eklemeyi önle
-  if (!header || header.id !== 'priceHeader') {
-    const buttons = createHeader(container, initialPeriod);
-    buttons.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const key = btn.id.replace("Btn", "");
-        setActive(btn, buttons);
-        const agg = aggregateData(data, CONFIG.PERIODS[key]);
-        const stats = calculateStats(agg);
-        chart.setOption(getChartOption(agg, stats));
-      });
-    });
+  const headerId = 'priceHeader';
+  let header = document.getElementById(headerId);
+
+  // Butonları her seferinde yeniden oluştur (Closure sorununu çözmek için)
+  // Eski header varsa içeriğini temizle
+  if (header) {
+    header.innerHTML = "";
+  } else {
+    header = document.createElement("div");
+    header.id = headerId;
+    container.insertBefore(header, container.firstChild);
   }
+
+  const buttons = createHeader(header, initialPeriod); // createHeader artık container yerine header alıyor
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.id.replace("Btn", "");
+      setActive(btn, buttons);
+
+      const updatedSeries = getAggregatedSeries(key);
+      chart.setOption(getChartOption(updatedSeries, null));
+    });
+  });
 
   window.addEventListener("resize", () => chart.resize());
 }
@@ -153,11 +184,20 @@ function aggregateData(data, ay) {
   const start = new Date(now.getFullYear(), now.getMonth() - ay, now.getDate());
 
   data.forEach(({ tarih, fiyat }) => {
+    // 1. Tarih Kontrolü
     const d = new Date(tarih);
-    // Fiyatı parse ederken TL formatını temizle
-    const parsedFiyat = parseFloat(fiyat.replace(' TL', '').replace(',', '.'));
-
     if (isNaN(d) || d < start) return;
+
+    // 2. Fiyat Parse (String ise temizle, Sayı ise olduğu gibi al)
+    let parsedFiyat;
+    if (typeof fiyat === 'string') {
+      parsedFiyat = parseFloat(fiyat.replace(' TL', '').replace(',', '.'));
+    } else {
+      parsedFiyat = Number(fiyat);
+    }
+
+    if (isNaN(parsedFiyat)) return; // Fiyat geçersizse atla
+
     const key = d.toISOString().split("T")[0];
     if (!map[key]) map[key] = [];
     map[key].push(parsedFiyat);
@@ -179,10 +219,7 @@ function calculateStats(data) {
   };
 }
 
-function createHeader(container, defaultKey) {
-  const header = document.createElement("div");
-  header.id = "priceHeader";
-
+function createHeader(headerDiv, defaultKey) {
   const buttonGroup = document.createElement("div");
   buttonGroup.className = "button-group";
 
@@ -195,10 +232,7 @@ function createHeader(container, defaultKey) {
     buttonGroup.appendChild(btn);
   });
 
-  header.appendChild(buttonGroup);
-  // Pop-up'ta grafik konteynerinin üstüne ekle
-  container.insertBefore(header, container.firstChild);
-
+  headerDiv.appendChild(buttonGroup);
   return buttonGroup.querySelectorAll("button");
 }
 
@@ -207,92 +241,74 @@ function setActive(activeBtn, buttons) {
   activeBtn.classList.add("active");
 }
 
-function getChartOption(data, stats) {
-  const dataPoints = data.map((d) => d.fiyat);
-  const minY = Math.min(...dataPoints) - 10;
-  const maxY = Math.max(...dataPoints) + 10;
+function getChartOption(seriesList, stats) {
+  if (!seriesList || seriesList.length === 0) return {};
+
+  let allPrices = [];
+  seriesList.forEach(s => s.data.forEach(d => allPrices.push(d.fiyat)));
+  const minY = Math.min(...allPrices);
+  const maxY = Math.max(...allPrices);
+  const padding = (maxY - minY) * 0.1;
+
+  const finalSeries = seriesList.map(s => {
+    const isAmazon = s.name.toLowerCase().includes("amazon") || s.name.toLowerCase().includes("yanyo");
+    const color = isAmazon ? "#FF9900" : "#3498DB";
+
+    return {
+      name: s.name,
+      color: color, // Legend rengi için
+      data: s.data.map(d => [d.date, d.fiyat]),
+      type: "line",
+      smooth: true,
+      showSymbol: false,
+      lineStyle: { width: 3, color: color },
+      areaStyle: {
+        color: {
+          type: "linear",
+          x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: isAmazon ? "rgba(255, 153, 0, 0.4)" : "rgba(52, 152, 219, 0.4)" },
+            { offset: 1, color: isAmazon ? "rgba(255, 153, 0, 0.05)" : "rgba(52, 152, 219, 0.05)" }
+          ]
+        }
+      },
+      markPoint: isAmazon ? {
+        symbol: "pin",
+        symbolSize: 30,
+        label: { show: true, fontSize: 10, fontWeight: 'bold' },
+        itemStyle: { color: color },
+        data: [{ type: "max", name: "Max" }, { type: "min", name: "Min" }]
+      } : undefined
+    };
+  });
 
   return {
-    grid: { left: "0%", right: "0%", top: "7%", bottom: "0%", containLabel: true },
+    grid: { left: "5%", right: "5%", top: "15%", bottom: "10%", containLabel: true },
     tooltip: {
       trigger: "axis",
-      axisPointer: { type: "cross" },
-      formatter: (params) => {
-        const i = params[0].dataIndex;
-        const current = data[i];
-        const prev = i > 0 ? data[i - 1] : current;
-        const value = current.fiyat;
-        const prevVal = prev.fiyat;
-        const diff = prevVal !== 0 ? ((value - prevVal) / prevVal) * 100 : 0;
-        const pct = Math.abs(diff).toFixed(2);
-        const arrow = value > prevVal ? "⬆" : value < prevVal ? "⬇" : "⟷";
-        const color = value > prevVal ? "#D32F2F" : value < prevVal ? "#388E3C" : "#333";
-
-        return `<div style="color:${color}; font-weight:bold;">
-                  ${arrow} %${pct} - ₺${value.toLocaleString("tr-TR", CONFIG.TL_FORMAT)}
-                </div>
-                <div style="color:#555;">${formatDateTime(current.date)}</div>`;
-      },
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+      borderColor: '#eee',
+      textStyle: { color: '#333' },
+      axisPointer: { type: "cross", label: { backgroundColor: '#6a7985' } },
+      valueFormatter: (value) => value ? `₺${value.toLocaleString("tr-TR", CONFIG.TL_FORMAT)}` : '-'
+    },
+    legend: {
+      data: seriesList.map(s => s.name),
+      top: 0,
+      icon: 'circle'
     },
     xAxis: {
-      type: "category",
-      data: data.map((d) => d.date),
+      type: "time",
+      boundaryGap: false,
+      axisLabel: { formatter: { year: '{yyyy}', month: '{MMM}', day: '{d} {MMM}' } }
     },
     yAxis: {
       type: "value",
-      min: minY,
-      max: maxY,
-      axisLabel: {
-        formatter: (val) => `₺${val.toLocaleString("tr-TR")}`,
-      },
+      min: (v) => Math.floor(v.min - padding),
+      max: (v) => Math.ceil(v.max + padding),
+      axisLabel: { formatter: (val) => `₺${val.toLocaleString("tr-TR")}` }
     },
-    series: [
-      {
-        data: dataPoints,
-        type: "line",
-        smooth: true,
-        lineStyle: { width: 2, color: "#4575f7" },
-        areaStyle: {
-          color: {
-            type: "linear",
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              { offset: 0, color: "rgba(255, 0, 0, 0.3)" },
-              { offset: 1, color: "rgba(0, 255, 0, 0.3)" },
-            ],
-          },
-        },
-        markPoint: {
-          symbol: "pin",
-          symbolSize: 16,
-          data: [
-            {
-              type: "max",
-              itemStyle: { color: "#ff0000" },
-              label: {
-                show: true,
-                formatter: "En Yüksek: ₺{c}",
-                color: "#ff0000",
-                position: "left",
-              },
-            },
-            {
-              type: "min",
-              itemStyle: { color: "#0000ff" },
-              label: {
-                show: true,
-                formatter: "En Düşük: ₺{c}",
-                color: "#0000ff",
-                position: "left",
-              },
-            },
-          ],
-        },
-      },
-    ],
+    series: finalSeries,
   };
 }
 

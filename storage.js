@@ -37,6 +37,20 @@ export async function getAllFromDB() {
   });
 }
 
+
+// Tek bir ürünü IndexedDB'den çeker
+export async function getProductFromDB(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], "readonly");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(id);
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 // Ürünleri IndexedDB'ye kaydeder veya günceller (Geliştirilmiş)
 export async function saveToDB(dataArray) {
   const db = await openDB();

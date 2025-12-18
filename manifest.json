@@ -11,7 +11,8 @@
     "tabs",
     "activeTab",
     "scripting",
-    "offscreen"
+    "offscreen",
+    "declarativeNetRequest"
   ],
   "host_permissions": [
     "*://*.amazon.com.tr/*",
@@ -19,8 +20,19 @@
     "*://apiv2.yaniyo.com/*",
     "https://www.hepsiburada.com/*",
     "https://*.hepsiburada.com/*",
-    "https://amazon.aft.web.tr/*"
+    "https://amazon.aft.web.tr/*",
+    "*://*.akakce.com/*",
+    "*://*.akamaized.net/*"
   ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "ruleset_1",
+        "enabled": true,
+        "path": "rules_1.json"
+      }
+    ]
+  },
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -58,11 +70,22 @@
       ],
       "js": [
         "storage.content.js",
-        "content-hb.js"
+        "src/echarts.min.js",
+        "content-hb.js",
+        "content-hb.chart.js"
       ],
       "css": [
         "css/styles.css"
       ]
+    },
+    {
+      "matches": [
+        "https://www.akakce.com/*"
+      ],
+      "js": [
+        "content-akakce.js"
+      ],
+      "run_at": "document_start"
     }
   ],
   "options_ui": {
@@ -73,6 +96,7 @@
     {
       "resources": [
         "src/echarts.min.js",
+        "src/akakce_hijack.js",
         "sound/*"
       ],
       "matches": [

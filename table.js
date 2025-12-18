@@ -7,7 +7,7 @@ import { parsePrice, timeAgo } from "./price-utils.js"; // timeAgo buradan geliy
 
 let expandedRowIndex = null;
 
-export async function renderProductList(products, productList, updateBadgeCount) {
+export async function renderProductList(products, productList, updateBadgeCount, updateState = null) {
   productList.textContent = "";
 
   if (!products.length) {
@@ -20,7 +20,7 @@ export async function renderProductList(products, productList, updateBadgeCount)
   }
 
   products.forEach((product, index) => {
-    productList.appendChild(createProductRow(product, index, toggleAccordion, updateBadgeCount, productList));
+    productList.appendChild(createProductRow(product, index, toggleAccordion, updateBadgeCount, productList, updateState));
   });
 
   updateBadgeCount(products);
@@ -34,15 +34,118 @@ document.addEventListener("click", (event) => {
   });
 });
 
-export function createProductRow(product, index, toggleAccordion, updateBadgeCount, productList) {
+export function createProductRow(product, index, toggleAccordion, updateBadgeCount, productList, updateState = null) {
 
   const productRow = document.createElement("div");
   productRow.className = "product-row";
   productRow.dataset.id = product.id;
 
-  // Group Cell
+  // Güncelleme durumunu hemen uygula (Flicker engelleme)
+  if (updateState && updateState.isUpdating) {
+    if (updateState.processingIds && updateState.processingIds.includes(product.id)) {
+      productRow.classList.add("processing");
+    } else if (updateState.queueIds && updateState.queueIds.includes(product.id)) {
+      productRow.classList.add("queued");
+    } else if (updateState.processedIds && updateState.processedIds.includes(product.id)) {
+      productRow.classList.add("processed");
+    }
+  }
+
+  // 1. ACTION CELL (New Refresh Button Location)
+  const actionCell = document.createElement("div");
+  actionCell.className = "cell-actions";
+
+  const refreshBtn = document.createElement("button");
+  refreshBtn.className = "icon-btn refresh-btn-premium";
+  refreshBtn.title = "Sadece bu ürünü güncelle";
+  refreshBtn.innerHTML = '<span class="material-icons" style="font-size: 18px;">sync</span>';
+  refreshBtn.onclick = async (e) => {
+    e.stopPropagation();
+    refreshBtn.classList.add("rotating");
+    refreshBtn.disabled = true;
+
+    try {
+      const { updateProductPrice } = await import('./update.js');
+      const updatedProduct = await updateProductPrice(product, true);
+
+      // DOM Update
+      const row = productList.querySelector(`.product-row[data-id="${product.id}"]`);
+      if (row) {
+        const newPriceCell = row.querySelector(".cell-price-new");
+        const statusCell = row.querySelector(".cell-status");
+        const statusText = statusCell.querySelector("span");
+
+        if (newPriceCell) {
+          const priceText = newPriceCell.querySelector("span:not(.sub-text)");
+          if (priceText) {
+            priceText.textContent = (updatedProduct.newPrice || "-").replace("TL", " TL");
+            const oldP = parsePrice(updatedProduct.oldPrice);
+            const newP = parsePrice(updatedProduct.newPrice);
+            priceText.style.color = !oldP ? "#3498DB" : newP < oldP ? "#2ECC71" : newP > oldP ? "#E74C3C" : "";
+          }
+
+          // Akakçe update
+          const existingAkakce = newPriceCell.querySelector("div[style*='color: rgb(52, 152, 219)']");
+          if (existingAkakce) existingAkakce.remove();
+
+          if (updatedProduct.akakceHistory && updatedProduct.akakceHistory.length > 0) {
+            const latest = updatedProduct.akakceHistory[updatedProduct.akakceHistory.length - 1];
+            const akakceDiv = document.createElement("div");
+            akakceDiv.style.fontSize = "11px";
+            akakceDiv.style.color = "#3498DB";
+            akakceDiv.style.marginTop = "2px";
+
+            let contentHTML = `<span style="font-weight:600">Akakçe:</span> ${latest.fiyat.toLocaleString("tr-TR")} TL`;
+            if (updatedProduct.akakceUrl) {
+              contentHTML = `<a href="${updatedProduct.akakceUrl}" target="_blank" style="text-decoration:none; color:inherit;">${contentHTML}</a>`;
+            }
+            akakceDiv.innerHTML = contentHTML;
+
+            const subText = newPriceCell.querySelector(".sub-text");
+            if (subText) newPriceCell.insertBefore(akakceDiv, subText);
+            else newPriceCell.appendChild(akakceDiv);
+          }
+        }
+
+        if (statusText) {
+          if (updatedProduct.status === "Stokta Yok") statusText.textContent = "Stok Yok";
+          else statusText.textContent = updatedProduct.status || "";
+        }
+      }
+
+      showToast("Ürün güncellendi!", "success");
+    } catch (err) {
+      console.error("Tekil güncelleme hatası:", err);
+    } finally {
+      refreshBtn.classList.remove("rotating");
+      refreshBtn.disabled = false;
+    }
+  };
+  actionCell.appendChild(refreshBtn);
+  productRow.appendChild(actionCell);
+
+  // 2. IMAGE CELL (Moved before Group)
+  const imageCell = document.createElement("div");
+  imageCell.className = "cell-image";
+  const previewImg = document.createElement("img");
+  previewImg.className = "preview-img";
+
+  if (product.picUrl) {
+    previewImg.src = product.picUrl;
+  } else {
+    previewImg.src = "";
+    previewImg.classList.add("no-image");
+  }
+
+  imageCell.appendChild(previewImg);
+  productRow.appendChild(imageCell);
+
+  // 3. GROUP CELL
   const groupCell = document.createElement("div");
   groupCell.className = "cell-group";
+  groupCell.style.position = "relative";
+  groupCell.style.backgroundColor = "transparent"; // Click helper
+
   const groups = ["🔴", "🟡", "🟢"];
   product.group = product.group || "";
   groupCell.textContent = groups.includes(product.group) ? product.group : "";
@@ -68,13 +171,8 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
 
         await saveToDB([{ id: product.id, group: newGroup }]);
 
-        const allDataFromDB = await getAllFromDB();
-        const allDataFromSync = await getAllFromSync();
-        const dbMap = new Map(allDataFromDB.map(item => [item.id, item]));
-        const mergedData = allDataFromSync.map(p => ({ ...p, ...(dbMap.get(p.id) || {}) }));
-        const sortedData = mergedData.sort((a, b) => (a.no || Infinity) - (b.no || Infinity));
-
-        renderProductList(sortedData, productList, updateBadgeCount);
+        const { applySortAndRender } = await import('./popup.js');
+        await applySortAndRender({ forceFetch: true });
 
       } catch (e) {
         showToast("Hata oluştu.", "error");
@@ -83,38 +181,21 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
     };
     groupMenu.appendChild(option);
   });
-  groupCell.onclick = () => {
-    const rect = groupCell.getBoundingClientRect();
-    groupMenu.style.left = `${rect.left + window.scrollX + 32}px`;
-    groupMenu.style.top = `${rect.top + window.scrollY - 30}px`;
-    groupMenu.style.display = "block";
+  groupCell.onclick = (e) => {
+    e.stopPropagation();
+    // Diğer menüleri kapat
+    document.querySelectorAll(".group-menu").forEach(m => {
+      if (m !== groupMenu) m.style.display = "none";
+    });
+
+    groupMenu.style.left = "0px";
+    groupMenu.style.top = "30px"; // Sola ve aşağıya sabitle (relative ebeveyne göre)
+    groupMenu.style.display = groupMenu.style.display === "block" ? "none" : "block";
   };
   groupCell.appendChild(groupMenu);
   productRow.appendChild(groupCell);
 
-  // Number Cell
-  const noCell = document.createElement("div");
-  noCell.className = "cell-number";
-  noCell.textContent = index + 1; // Sadece listedeki sırasını gösterir
-  productRow.appendChild(noCell);
-
-  // Image Cell
-  const imageCell = document.createElement("div");
-  imageCell.className = "cell-image";
-  const previewImg = document.createElement("img");
-  previewImg.className = "preview-img";
-
-  if (product.picUrl) {
-    previewImg.src = product.picUrl;
-  } else {
-    previewImg.src = "";
-    previewImg.classList.add("no-image");
-  }
-
-  imageCell.appendChild(previewImg);
-  productRow.appendChild(imageCell);
-
-  // Name Cell
+  // 4. NAME CELL (No number cell anymore)
   const nameCell = document.createElement("div");
   nameCell.className = "cell-name";
   nameCell.style.display = "flex";
@@ -226,6 +307,27 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
   }
   newPriceCell.appendChild(priceText);
 
+  // Akakçe Fiyat Gösterimi Konteynırı (Gelişmiş & Sabit)
+  const akakceContainer = document.createElement("div");
+  akakceContainer.className = "akakce-info-container";
+  akakceContainer.style.minHeight = "18px"; // Yükseklik zıplamasını önlemek için
+
+  if (product.akakceHistory && product.akakceHistory.length > 0) {
+    const latest = product.akakceHistory.reduce((prev, current) =>
+      (new Date(prev.tarih) > new Date(current.tarih)) ? prev : current
+    );
+    const diffDays = Math.floor((new Date() - new Date(latest.tarih)) / (1000 * 60 * 60 * 24));
+    const oldWarning = diffDays > 3 ? ` (${diffDays}g önce)` : '';
+    let html = `<span style="font-weight:600">Akakçe:</span> ${latest.fiyat.toLocaleString("tr-TR")} TL${oldWarning}`;
+    if (product.akakceUrl) {
+      html = `<a href="${product.akakceUrl}" target="_blank" style="text-decoration:none; color:inherit;">${html}</a>`;
+    }
+    akakceContainer.innerHTML = `<div style="font-size:11px; color:#3498DB; margin-top:2px;">${html}</div>`;
+  } else {
+    akakceContainer.innerHTML = `<div style="font-size:11px; color:transparent; margin-top:2px;">-</div>`;
+  }
+  newPriceCell.appendChild(akakceContainer);
+
   // Son Değişim Zamanı (timeAgo fonksiyonu kullanılıyor)
   const changeSpan = document.createElement("span");
   changeSpan.className = "sub-text";
@@ -241,12 +343,19 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
   // Status Cell
   const statusCell = document.createElement("div");
   statusCell.className = "cell-status";
+  statusCell.style.display = "flex";
+  statusCell.style.alignItems = "center";
+  statusCell.style.justifyContent = "space-between";
 
+  const statusText = document.createElement("span");
   if (product.status === "Stokta Yok") {
-    statusCell.textContent = "Stok Yok";
+    statusText.textContent = "Stok Yok";
   } else {
-    statusCell.textContent = product.status || "";
+    statusText.textContent = product.status || "";
   }
+  statusCell.appendChild(statusText);
+
+  // refresh button removed from here
 
   const statusTitles = {
     "➕": "Ürün stoğa girdi",
@@ -257,12 +366,16 @@ export function createProductRow(product, index, toggleAccordion, updateBadgeCou
     "🟰": "Fiyat değişmedi",
     "✅": "Kontrol edildi"
   };
-  statusCell.title = statusTitles[statusCell.textContent] || "";
+  statusCell.title = statusTitles[statusText.textContent] || "";
 
+  // Chevron remains in status cell for accordion
   const chartIcon = document.createElement("span");
   chartIcon.className = "material-icons chart-chevron-icon";
   chartIcon.textContent = "expand_more";
+  chartIcon.style.marginLeft = "auto"; // Push directly to right if flex
   statusCell.appendChild(chartIcon);
+
+  // click event moved below...
 
   statusCell.onclick = async () => {
     if (["➕", "⬆️", "⬇️"].includes(product.status)) {
@@ -363,13 +476,115 @@ export function toggleAccordion(index, product, productList) {
       disclaimer.className = "chart-disclaimer";
       disclaimer.textContent = "Grafik verileri, Yanyo (yaniyo.com) ve AFT sunucuları tarafından sağlanmaktadır.";
 
-      content.append(chartDiv, noData, disclaimer);
+      // AKAKÇE BUTTON & CHART
+      // AKAKÇE BUTTON (Graph merged into main chart)
+      const akakceBtn = document.createElement("button");
+      akakceBtn.className = "action-button";
+      akakceBtn.style.marginTop = "15px";
+      akakceBtn.style.width = "100%";
+      akakceBtn.style.backgroundColor = "#2d3436"; // Akakçe dark gray
+      akakceBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; font-size: 16px;">search</span> Akakçe Fiyat Geçmişini Getir';
+
+      akakceBtn.onclick = async () => {
+        akakceBtn.disabled = true;
+        akakceBtn.innerHTML = '<span class="material-icons rotating" style="vertical-align: middle; font-size: 16px;">sync</span> Akakçe taranıyor... (Arkaplanda)';
+
+        try {
+          const response = await browser.runtime.sendMessage({
+            action: "SEARCH_AND_SCRAPE_AKAKCE_HISTORY",
+            productName: product.name
+          });
+
+          akakceBtn.disabled = false;
+
+          if (response && response.success) {
+
+            if (response.data && response.data.length > 0) {
+              const formattedAkakceData = response.data.map(d => {
+                const rawDate = d.tarih || d.date;
+                const price = d.fiyat || d.price;
+                let dateStr = rawDate;
+                if (rawDate) {
+                  try {
+                    const dateObj = new Date(rawDate);
+                    dateStr = dateObj.toISOString().split('T')[0];
+                  } catch (e) { dateStr = rawDate; }
+                }
+                return { tarih: dateStr, fiyat: price };
+              });
+
+              // 1. Veriyi Kaydet (Cache)
+              try {
+                const productsFromDB = await getAllFromDB();
+                const i = productsFromDB.findIndex(p => p.id === product.id);
+                if (i >= 0) {
+                  productsFromDB[i].akakceHistory = formattedAkakceData;
+                  if (response.productUrl) {
+                    productsFromDB[i].akakceUrl = response.productUrl;
+                  }
+                  await saveToDB(productsFromDB);
+                } else {
+                  // Eğer DB'de yoksa (sync only?), DB'ye eklemeyi deneyebiliriz ama şimdilik sadece mevcut kaydı güncelliyoruz.
+                  // Veya sadece bellekte tutup render edebiliriz.
+                }
+              } catch (e) { console.error("Akakçe verisi kaydedilemedi", e); }
+
+              // 2. Grafiği Tekrar Çiz (Birleştirilmiş Veri ile)
+              // Mevcut data (Amazon/Yanyo) + Yeni Akakçe verisi
+              renderChart(`chart-${index}`, [
+                { name: 'Amazon' + (data && data.length > 0 ? '' : ''), data: data, color: '#FF9900' },
+                { name: 'Akakçe', data: formattedAkakceData, color: '#3498DB' }
+              ]);
+
+            } else if (response.summary) {
+              // Highcharts yok ama özet bilgi var
+              // Bunu nasıl göstereceğiz? Ayrı bir div açabiliriz veya toast atabiliriz.
+              // Şimdilik toast ile idare edelim veya buton metnini değiştirip bırakalım.
+              showToast(`Özet: Min ${response.summary.low} / Max ${response.summary.high}`, "info");
+            } else if (response.currentPrice) {
+              showToast(`Güncel Akakçe Fiyatı: ${response.currentPrice}`, "info");
+            } else {
+              showToast("Grafik veya fiyat verisi bulunamadı.", "error");
+            }
+
+            akakceBtn.style.display = "none";
+            if (response.data && response.data.length > 0) showToast("Akakçe verileri başarıyla yüklendi", "success");
+          } else {
+            showToast(response ? (response.error || "Hata oluştu") : "Yanıt yok", "error");
+            akakceBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; font-size: 16px;">error</span> Tekrar Dene';
+          }
+        } catch (error) {
+          console.error("Akakçe isteği hatası:", error);
+          akakceBtn.disabled = false;
+          akakceBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; font-size: 16px;">error</span> Hata Oluştu';
+          showToast("İletişim hatası: " + error.message, "error");
+        }
+      };
+
+      content.append(chartDiv, noData, disclaimer, akakceBtn);
       cell.appendChild(content);
       accordion.appendChild(cell);
       productRow.insertAdjacentElement("afterend", accordion);
 
       if (data && Array.isArray(data) && data.length > 0) {
-        renderChart(`chart-${index}`, data);
+        // DB'den Akakçe verisi de var mı kontrol et
+        getAllFromDB().then(dbProducts => {
+          const stored = dbProducts.find(p => p.id === product.id);
+          if (stored && stored.akakceHistory && stored.akakceHistory.length > 0) {
+            // Hem Amazon hem Akakçe verisi var, birleştirip çiz
+            renderChart(`chart-${index}`, [
+              { name: 'Amazon', data: data, color: '#FF9900' },
+              { name: 'Akakçe', data: stored.akakceHistory, color: '#3498DB' }
+            ]);
+            // Butonu gizle çünkü veri zaten var
+            akakceBtn.style.display = "none";
+          } else {
+            // Sadece Amazon verisi var
+            renderChart(`chart-${index}`, [
+              { name: 'Amazon', data: data, color: '#FF9900' }
+            ]);
+          }
+        });
       } else {
         noData.style.display = "block";
         noData.textContent = "Grafik verisi bulunamadı. Veri toplama isteği gönderilmiştir.";
