@@ -235,6 +235,13 @@ function setActive(activeBtn, buttons) {
 function getChartOption(seriesList, stats) {
   if (!seriesList || seriesList.length === 0) return {};
 
+  const isLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+  const textColor = isLight ? '#475569' : '#94a3b8';
+  const gridLineColor = isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.03)';
+  const tooltipBg = isLight ? 'rgba(255, 255, 255, 0.95)' : 'rgba(8, 8, 12, 0.8)';
+  const tooltipText = isLight ? '#0f172a' : '#ffffff';
+  const tooltipBorder = isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
+
   let allPrices = [];
   seriesList.forEach(s => s.data.forEach(d => allPrices.push(d.fiyat)));
   const minY = Math.min(...allPrices);
@@ -283,29 +290,29 @@ function getChartOption(seriesList, stats) {
     grid: { left: "4%", right: "4%", top: 15, bottom: "10%", containLabel: true },
     tooltip: {
       trigger: "axis",
-      backgroundColor: 'rgba(8, 8, 12, 0.8)',
-      borderColor: 'rgba(255, 255, 255, 0.1)',
+      backgroundColor: tooltipBg,
+      borderColor: tooltipBorder,
       borderWidth: 1,
-      textStyle: { color: '#fff', fontSize: 13, fontWeight: 500, fontFamily: 'Outfit' },
-      axisPointer: { type: "line", lineStyle: { color: 'rgba(255,255,255,0.1)', width: 2 } },
-      extraCssText: 'backdrop-filter: blur(12px); border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.6); padding: 12px;',
+      textStyle: { color: tooltipText, fontSize: 13, fontWeight: 500, fontFamily: 'Outfit' },
+      axisPointer: { type: "line", lineStyle: { color: isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)', width: 2 } },
+      extraCssText: `backdrop-filter: blur(12px); border-radius: 12px; box-shadow: ${isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 15px 35px rgba(0,0,0,0.6)'}; padding: 12px;`,
       valueFormatter: (value) => value ? `₺${value.toLocaleString("tr-TR", CONFIG.TL_FORMAT)}` : '-'
     },
     legend: {
       data: seriesList.map(s => s.name),
       top: 0,
       icon: 'circle',
-      textStyle: { color: '#94a3b8', fontSize: 12, fontFamily: 'Outfit' }
+      textStyle: { color: textColor, fontSize: 12, fontFamily: 'Outfit' }
     },
     xAxis: {
       type: "time",
       boundaryGap: false,
       axisLabel: {
         formatter: { year: '{yyyy}', month: '{MMM}', day: '{d} {MMM}' },
-        color: '#64748b',
+        color: textColor,
         fontSize: 10
       },
-      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+      axisLine: { lineStyle: { color: gridLineColor } },
       splitLine: { show: false }
     },
     yAxis: {
@@ -314,11 +321,11 @@ function getChartOption(seriesList, stats) {
       max: (v) => Math.ceil(v.max + padding),
       axisLabel: {
         formatter: (val) => `₺${val.toLocaleString("tr-TR")}`,
-        color: '#64748b',
+        color: textColor,
         fontSize: 10
       },
       axisLine: { show: false },
-      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.03)', type: 'dashed' } }
+      splitLine: { lineStyle: { color: gridLineColor, type: 'dashed' } }
     },
     series: finalSeries,
   };
